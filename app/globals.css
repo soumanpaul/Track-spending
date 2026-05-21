@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(26, 168, 120, 0.14), transparent 34rem),
+    linear-gradient(180deg, #f7f8fb 0%, #eef2f7 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.recharts-tooltip-wrapper {
+  outline: none;
+}
