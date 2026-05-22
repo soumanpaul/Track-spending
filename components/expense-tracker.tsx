@@ -27,6 +27,7 @@ import {
   CalendarDays,
   CreditCard,
   Download,
+  Edit3,
   Filter,
   LayoutGrid,
   Layers3,
@@ -38,6 +39,7 @@ import {
   SlidersHorizontal,
   Trash2,
   TrendingDown,
+  X,
   WalletCards,
 } from "lucide-react";
 import {
@@ -48,12 +50,13 @@ import {
   categoryColors,
   defaultBudgets,
   formatCurrency,
-  monthKey,
   seedExpenses,
 } from "@/lib/expense-data";
 
 const storageKey = "expense-desk-data-v1";
 const currentMonth = "2026-05";
+const currentMonthStart = `${currentMonth}-01`;
+const currentMonthEnd = "2026-05-31";
 const categoryFilterOptions = ["All", ...categories] as const;
 const paymentMethods = ["Card", "Cash", "UPI", "Bank"] as const;
 
@@ -63,6 +66,7 @@ type PaymentFilter = "All" | Expense["paymentMethod"];
 type RecurringFilter = "All" | "Recurring" | "One-time";
 type BudgetFilter = "All" | "Over budget" | "Near limit" | "Within budget";
 type SmartView = "All" | "Needs review" | "Recurring bills" | "Large purchases" | "Discretionary";
+type FormErrors = Partial<Record<"title" | "amount" | "date" | "range", string>>;
 
 const sortOptions: { key: SortKey; label: string }[] = [
   { key: "date-desc", label: "Newest first" },
@@ -101,9 +105,15 @@ export function ExpenseTracker() {
   const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
   const [budgets, setBudgets] = useState<Budget>(defaultBudgets);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [feedback, setFeedback] = useState("");
+  const [storageError, setStorageError] = useState("");
+  const [isReady, setIsReady] = useState(false);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"All" | ExpenseCategory>("All");
-  const [monthFilter, setMonthFilter] = useState(currentMonth);
+  const [dateStart, setDateStart] = useState(currentMonthStart);
+  const [dateEnd, setDateEnd] = useState(currentMonthEnd);
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("All");
   const [recurringFilter, setRecurringFilter] = useState<RecurringFilter>("All");
   const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>("All");
@@ -114,28 +124,43 @@ export function ExpenseTracker() {
   const [amountMax, setAmountMax] = useState("");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey);
-    if (!saved) return;
-
     try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (!saved) return;
+
       const parsed = JSON.parse(saved) as StoredData;
-      setExpenses(parsed.expenses ?? seedExpenses);
-      setBudgets({ ...defaultBudgets, ...(parsed.budgets ?? {}) });
+      setExpenses((parsed.expenses ?? seedExpenses).map(normalizeExpense));
+      setBudgets(normalizeBudgets(parsed.budgets));
     } catch {
-      window.localStorage.removeItem(storageKey);
+      setStorageError("Saved data could not be loaded, so the demo data is being shown.");
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        setStorageError("Saved data could not be loaded or reset in this browser.");
+      }
+    } finally {
+      setIsReady(true);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify({ expenses, budgets }));
-  }, [expenses, budgets]);
+    if (!isReady) return;
+
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({ expenses, budgets }));
+      setStorageError("");
+    } catch {
+      setStorageError("Changes are visible now but could not be saved to localStorage.");
+    }
+  }, [budgets, expenses, isReady]);
 
   const filteredExpenses = useMemo(() => {
     const min = amountMin ? Number(amountMin) : null;
     const max = amountMax ? Number(amountMax) : null;
 
     return expenses
-      .filter((expense) => monthKey(expense.date) === monthFilter)
+      .filter((expense) => !dateStart || expense.date >= dateStart)
+      .filter((expense) => !dateEnd || expense.date <= dateEnd)
       .filter((expense) => categoryFilter === "All" || expense.category === categoryFilter)
       .filter((expense) => paymentFilter === "All" || expense.paymentMethod === paymentFilter)
       .filter((expense) => recurringFilter === "All" || (recurringFilter === "Recurring" ? expense.recurring : !expense.recurring))
@@ -143,7 +168,7 @@ export function ExpenseTracker() {
       .filter((expense) => max === null || expense.amount <= max)
       .filter((expense) => {
         const categorySpend = expenses
-          .filter((candidate) => candidate.category === expense.category && monthKey(candidate.date) === monthFilter)
+          .filter((candidate) => candidate.category === expense.category && isInDateRange(candidate.date, dateStart, dateEnd))
           .reduce((sum, candidate) => sum + candidate.amount, 0);
         const budget = budgets[expense.category];
         const ratio = budget > 0 ? categorySpend / budget : 0;
@@ -156,7 +181,7 @@ export function ExpenseTracker() {
       .filter((expense) => {
         if (smartView === "Recurring bills") return expense.recurring;
         if (smartView === "Large purchases") return expense.amount >= 100;
-        if (smartView === "Discretionary") return ["Entertainment", "Shopping", "Travel"].includes(expense.category);
+        if (smartView === "Discretionary") return ["Entertainment", "Shopping"].includes(expense.category);
         if (smartView === "Needs review") return expense.amount >= 100 || !expense.note || expense.recurring;
         return true;
       })
@@ -164,17 +189,17 @@ export function ExpenseTracker() {
         const text = `${expense.title} ${expense.category} ${expense.note ?? ""}`.toLowerCase();
         return text.includes(query.toLowerCase());
       })
-      .sort((a, b) => sortExpenses(a, b, sortKey, expenses, budgets, monthFilter));
-  }, [amountMax, amountMin, budgetFilter, budgets, categoryFilter, expenses, monthFilter, paymentFilter, query, recurringFilter, smartView, sortKey]);
+      .sort((a, b) => sortExpenses(a, b, sortKey, expenses, budgets, dateStart, dateEnd));
+  }, [amountMax, amountMin, budgetFilter, budgets, categoryFilter, dateEnd, dateStart, expenses, paymentFilter, query, recurringFilter, smartView, sortKey]);
 
   const totals = useMemo(() => {
-    const monthlyExpenses = expenses.filter((expense) => monthKey(expense.date) === monthFilter);
-    const total = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const recurring = monthlyExpenses
+    const rangeExpenses = expenses.filter((expense) => isInDateRange(expense.date, dateStart, dateEnd));
+    const total = rangeExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const recurring = rangeExpenses
       .filter((expense) => expense.recurring)
       .reduce((sum, expense) => sum + expense.amount, 0);
     const budgetTotal = Object.values(budgets).reduce((sum, budget) => sum + budget, 0);
-    const dailyAverage = total / Math.max(new Date(`${monthFilter}-01`).getDate(), 1);
+    const dailyAverage = total / getRangeDays(dateStart, dateEnd);
 
     return {
       total,
@@ -182,14 +207,14 @@ export function ExpenseTracker() {
       budgetTotal,
       remaining: budgetTotal - total,
       dailyAverage,
-      transactionCount: monthlyExpenses.length,
+      transactionCount: rangeExpenses.length,
     };
-  }, [budgets, expenses, monthFilter]);
+  }, [budgets, dateEnd, dateStart, expenses]);
 
   const categoryTotals = useMemo(() => {
     return categories.map((category) => {
       const spent = expenses
-        .filter((expense) => expense.category === category && monthKey(expense.date) === monthFilter)
+        .filter((expense) => expense.category === category && isInDateRange(expense.date, dateStart, dateEnd))
         .reduce((sum, expense) => sum + expense.amount, 0);
       const budget = budgets[category];
       return {
@@ -199,7 +224,7 @@ export function ExpenseTracker() {
         percent: budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0,
       };
     });
-  }, [budgets, expenses, monthFilter]);
+  }, [budgets, dateEnd, dateStart, expenses]);
 
   const topCategories = [...categoryTotals]
     .filter((item) => item.spent > 0)
@@ -239,12 +264,17 @@ export function ExpenseTracker() {
       .sort((a, b) => b.spent - a.spent);
   }, [filteredExpenses]);
 
-  function addExpense() {
+  const rangeLabel = dateStart && dateEnd ? `${dateStart} to ${dateEnd}` : "selected range";
+  const dateRangeError = dateStart && dateEnd && dateStart > dateEnd ? "Start date must be before end date." : "";
+
+  function submitExpense() {
     const amount = Number(form.amount);
-    if (!form.title.trim() || Number.isNaN(amount) || amount <= 0) return;
+    const errors = validateExpenseForm(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const expense: Expense = {
-      id: crypto.randomUUID(),
+      id: editingId ?? crypto.randomUUID(),
       title: form.title.trim(),
       amount,
       category: form.category,
@@ -254,12 +284,42 @@ export function ExpenseTracker() {
       recurring: form.recurring,
     };
 
-    setExpenses((current) => [expense, ...current]);
-    setForm({ ...emptyForm, category: form.category, date: form.date });
+    if (editingId) {
+      setExpenses((current) => current.map((item) => (item.id === editingId ? expense : item)));
+      setFeedback("Expense updated.");
+    } else {
+      setExpenses((current) => [expense, ...current]);
+      setFeedback("Expense added.");
+    }
+
+    cancelEdit({ keepContext: true });
   }
 
   function removeExpense(id: string) {
     setExpenses((current) => current.filter((expense) => expense.id !== id));
+    if (editingId === id) cancelEdit();
+    setFeedback("Expense deleted.");
+  }
+
+  function startEdit(expense: Expense) {
+    setEditingId(expense.id);
+    setForm({
+      title: expense.title,
+      amount: String(expense.amount),
+      category: expense.category,
+      date: expense.date,
+      paymentMethod: expense.paymentMethod,
+      note: expense.note ?? "",
+      recurring: expense.recurring,
+    });
+    setFormErrors({});
+    setFeedback("Editing selected expense.");
+  }
+
+  function cancelEdit(options?: { keepContext?: boolean }) {
+    setEditingId(null);
+    setForm({ ...emptyForm, category: options?.keepContext ? form.category : "Food", date: options?.keepContext ? form.date : emptyForm.date });
+    setFormErrors({});
   }
 
   function resetDemoData() {
@@ -267,7 +327,8 @@ export function ExpenseTracker() {
     setBudgets(defaultBudgets);
     setQuery("");
     setCategoryFilter("All");
-    setMonthFilter(currentMonth);
+    setDateStart(currentMonthStart);
+    setDateEnd(currentMonthEnd);
     setPaymentFilter("All");
     setRecurringFilter("All");
     setBudgetFilter("All");
@@ -276,6 +337,8 @@ export function ExpenseTracker() {
     setDisplayMode("table");
     setAmountMin("");
     setAmountMax("");
+    cancelEdit();
+    setFeedback("Demo data restored.");
   }
 
   function exportCsv() {
@@ -296,9 +359,10 @@ export function ExpenseTracker() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `expenses-${monthFilter}.csv`;
+    link.download = `expenses-${dateStart || "start"}-to-${dateEnd || "end"}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    setFeedback("CSV export created.");
   }
 
   return (
@@ -314,7 +378,7 @@ export function ExpenseTracker() {
               Track spending with budgets that stay visible.
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Add purchases, monitor monthly category limits, search transactions, and export a clean CSV from one focused dashboard.
+              Add purchases, monitor category limits, search transactions, and export a clean CSV from one focused dashboard.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -327,10 +391,28 @@ export function ExpenseTracker() {
           </div>
         </header>
 
+        {!isReady ? (
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Loading saved expenses...
+          </div>
+        ) : null}
+
+        {storageError ? (
+          <div className="rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+            {storageError}
+          </div>
+        ) : null}
+
+        {feedback ? (
+          <div className="rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+            {feedback}
+          </div>
+        ) : null}
+
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={<TrendingDown size={20} />} label="Spent this month" value={formatCurrency(totals.total)} detail={`${totals.transactionCount} transactions`} />
+          <MetricCard icon={<TrendingDown size={20} />} label="Spent in range" value={formatCurrency(totals.total)} detail={`${totals.transactionCount} transactions`} />
           <MetricCard icon={<Banknote size={20} />} label="Budget left" value={formatCurrency(totals.remaining)} detail={`${Math.round((totals.total / totals.budgetTotal) * 100)}% of total budget used`} tone={totals.remaining < 0 ? "danger" : "success"} />
-          <MetricCard icon={<CalendarDays size={20} />} label="Daily average" value={formatCurrency(totals.dailyAverage)} detail={`For ${monthFilter}`} />
+          <MetricCard icon={<CalendarDays size={20} />} label="Daily average" value={formatCurrency(totals.dailyAverage)} detail={rangeLabel} />
           <MetricCard icon={<CreditCard size={20} />} label="Recurring" value={formatCurrency(totals.recurring)} detail="Scheduled monthly expenses" />
         </section>
 
@@ -341,15 +423,39 @@ export function ExpenseTracker() {
                 <Plus size={20} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">New expense</h2>
+                <h2 className="text-lg font-semibold text-slate-950">{editingId ? "Edit expense" : "New expense"}</h2>
                 <p className="text-sm text-slate-500">Capture the amount, category, and payment context.</p>
               </div>
             </CardHeader>
             <CardBody className="gap-4 px-5 pb-5">
-              <Input label="Title" placeholder="Coffee, rent, train ticket" value={form.title} onValueChange={(title) => setForm((current) => ({ ...current, title }))} />
+              <Input
+                isInvalid={Boolean(formErrors.title)}
+                errorMessage={formErrors.title}
+                label="Description"
+                placeholder="Coffee, rent, train ticket"
+                value={form.title}
+                onValueChange={(title) => setForm((current) => ({ ...current, title }))}
+              />
               <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="Amount" min="0" placeholder="0.00" startContent="$" type="number" value={form.amount} onValueChange={(amount) => setForm((current) => ({ ...current, amount }))} />
-                <Input label="Date" type="date" value={form.date} onValueChange={(date) => setForm((current) => ({ ...current, date }))} />
+                <Input
+                  isInvalid={Boolean(formErrors.amount)}
+                  errorMessage={formErrors.amount}
+                  label="Amount"
+                  min="0"
+                  placeholder="0.00"
+                  startContent="$"
+                  type="number"
+                  value={form.amount}
+                  onValueChange={(amount) => setForm((current) => ({ ...current, amount }))}
+                />
+                <Input
+                  isInvalid={Boolean(formErrors.date)}
+                  errorMessage={formErrors.date}
+                  label="Date"
+                  type="date"
+                  value={form.date}
+                  onValueChange={(date) => setForm((current) => ({ ...current, date }))}
+                />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Select label="Category" selectedKeys={[form.category]} onSelectionChange={(keys) => setForm((current) => ({ ...current, category: Array.from(keys)[0] as ExpenseCategory }))}>
@@ -367,9 +473,16 @@ export function ExpenseTracker() {
                 </div>
                 <Switch isSelected={form.recurring} onValueChange={(recurring) => setForm((current) => ({ ...current, recurring }))} />
               </div>
-              <Button color="primary" size="lg" startContent={<Plus size={18} />} onPress={addExpense}>
-                Add expense
-              </Button>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Button color="primary" size="lg" startContent={editingId ? <Edit3 size={18} /> : <Plus size={18} />} onPress={submitExpense}>
+                  {editingId ? "Save changes" : "Add expense"}
+                </Button>
+                {editingId ? (
+                  <Button size="lg" startContent={<X size={18} />} variant="flat" onPress={() => cancelEdit()}>
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
             </CardBody>
           </Card>
 
@@ -377,7 +490,7 @@ export function ExpenseTracker() {
             <Card radius="sm" shadow="sm" className="border border-slate-200/70">
               <CardHeader className="flex-col items-start gap-1 px-5 pt-5">
                 <h2 className="text-lg font-semibold text-slate-950">Budget health</h2>
-                <p className="text-sm text-slate-500">Adjust category budgets and watch month-to-date usage.</p>
+                <p className="text-sm text-slate-500">Adjust category budgets and watch usage across the selected date range.</p>
               </CardHeader>
               <CardBody className="grid gap-4 px-5 pb-5 lg:grid-cols-2">
                 {categoryTotals.map(({ category, spent, budget, percent }) => (
@@ -430,7 +543,8 @@ export function ExpenseTracker() {
                 </div>
                 <div className="grid w-full gap-2 md:grid-cols-2 xl:grid-cols-4">
                   <Input aria-label="Search expenses" startContent={<Search size={16} />} placeholder="Search" value={query} onValueChange={setQuery} />
-                  <Input aria-label="Filter by month" startContent={<Filter size={16} />} type="month" value={monthFilter} onValueChange={setMonthFilter} />
+                  <Input aria-label="Filter start date" label="Start date" startContent={<Filter size={16} />} type="date" value={dateStart} onValueChange={setDateStart} />
+                  <Input isInvalid={Boolean(dateRangeError)} errorMessage={dateRangeError} aria-label="Filter end date" label="End date" type="date" value={dateEnd} onValueChange={setDateEnd} />
                   <Select aria-label="Filter by category" selectedKeys={[categoryFilter]} onSelectionChange={(keys) => setCategoryFilter(Array.from(keys)[0] as "All" | ExpenseCategory)}>
                     {categoryFilterOptions.map((category) => (
                       <SelectItem key={category}>{category === "All" ? "All categories" : category}</SelectItem>
@@ -471,14 +585,14 @@ export function ExpenseTracker() {
               <Divider />
               <CardBody className={displayMode === "table" ? "px-0 py-0" : "p-5"}>
                 {displayMode === "table" ? (
-                  <ExpenseTable expenses={filteredExpenses} onRemove={removeExpense} />
+                  <ExpenseTable expenses={filteredExpenses} onEdit={startEdit} onRemove={removeExpense} />
                 ) : null}
 
                 {displayMode === "cards" ? (
                   <div className="grid gap-3 md:grid-cols-2">
                     {filteredExpenses.length === 0 ? <EmptyState /> : null}
                     {filteredExpenses.map((expense) => (
-                      <ExpenseCard key={expense.id} expense={expense} onRemove={removeExpense} />
+                      <ExpenseCard key={expense.id} expense={expense} onEdit={startEdit} onRemove={removeExpense} />
                     ))}
                   </div>
                 ) : null}
@@ -555,7 +669,7 @@ function MetricCard({ icon, label, value, detail, tone = "default" }: { icon: Re
   );
 }
 
-function ExpenseTable({ expenses, onRemove }: { expenses: Expense[]; onRemove: (id: string) => void }) {
+function ExpenseTable({ expenses, onEdit, onRemove }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onRemove: (id: string) => void }) {
   return (
     <Table removeWrapper aria-label="Expense transactions" classNames={{ th: "bg-slate-50 text-slate-600", td: "py-4" }}>
       <TableHeader>
@@ -585,7 +699,12 @@ function ExpenseTable({ expenses, onRemove }: { expenses: Expense[]; onRemove: (
             <TableCell>{expense.paymentMethod}{expense.recurring ? " · recurring" : ""}</TableCell>
             <TableCell className="text-right font-semibold text-slate-950">{formatCurrency(expense.amount)}</TableCell>
             <TableCell>
-              <div className="flex justify-center">
+              <div className="flex justify-center gap-1">
+                <Tooltip content="Edit expense">
+                  <Button isIconOnly aria-label="Edit expense" color="primary" size="sm" variant="light" onPress={() => onEdit(expense)}>
+                    <Edit3 size={17} />
+                  </Button>
+                </Tooltip>
                 <Tooltip content="Delete expense">
                   <Button isIconOnly aria-label="Delete expense" color="danger" size="sm" variant="light" onPress={() => onRemove(expense.id)}>
                     <Trash2 size={17} />
@@ -600,7 +719,7 @@ function ExpenseTable({ expenses, onRemove }: { expenses: Expense[]; onRemove: (
   );
 }
 
-function ExpenseCard({ expense, onRemove }: { expense: Expense; onRemove: (id: string) => void }) {
+function ExpenseCard({ expense, onEdit, onRemove }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (id: string) => void }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
@@ -611,9 +730,14 @@ function ExpenseCard({ expense, onRemove }: { expense: Expense; onRemove: (id: s
             <p className="text-xs text-slate-500">{expense.date} · {expense.paymentMethod}{expense.recurring ? " · recurring" : ""}</p>
           </div>
         </div>
-        <Button isIconOnly aria-label="Delete expense" color="danger" size="sm" variant="light" onPress={() => onRemove(expense.id)}>
-          <Trash2 size={17} />
-        </Button>
+        <div className="flex gap-1">
+          <Button isIconOnly aria-label="Edit expense" color="primary" size="sm" variant="light" onPress={() => onEdit(expense)}>
+            <Edit3 size={17} />
+          </Button>
+          <Button isIconOnly aria-label="Delete expense" color="danger" size="sm" variant="light" onPress={() => onRemove(expense.id)}>
+            <Trash2 size={17} />
+          </Button>
+        </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
         <Chip size="sm" variant="flat" style={{ color: categoryColors[expense.category] }}>{expense.category}</Chip>
@@ -650,23 +774,79 @@ function EmptyState() {
   );
 }
 
-function sortExpenses(a: Expense, b: Expense, sortKey: SortKey, allExpenses: Expense[], budgets: Budget, monthFilter: string) {
+function sortExpenses(a: Expense, b: Expense, sortKey: SortKey, allExpenses: Expense[], budgets: Budget, dateStart: string, dateEnd: string) {
   if (sortKey === "date-asc") return a.date.localeCompare(b.date) || b.amount - a.amount;
   if (sortKey === "amount-desc") return b.amount - a.amount || b.date.localeCompare(a.date);
   if (sortKey === "amount-asc") return a.amount - b.amount || b.date.localeCompare(a.date);
   if (sortKey === "category") return a.category.localeCompare(b.category) || b.amount - a.amount;
   if (sortKey === "merchant") return a.title.localeCompare(b.title) || b.date.localeCompare(a.date);
   if (sortKey === "budget-risk") {
-    return getBudgetRatio(b, allExpenses, budgets, monthFilter) - getBudgetRatio(a, allExpenses, budgets, monthFilter) || b.amount - a.amount;
+    return getBudgetRatio(b, allExpenses, budgets, dateStart, dateEnd) - getBudgetRatio(a, allExpenses, budgets, dateStart, dateEnd) || b.amount - a.amount;
   }
 
   return b.date.localeCompare(a.date) || b.amount - a.amount;
 }
 
-function getBudgetRatio(expense: Expense, allExpenses: Expense[], budgets: Budget, monthFilter: string) {
+function getBudgetRatio(expense: Expense, allExpenses: Expense[], budgets: Budget, dateStart: string, dateEnd: string) {
   const spent = allExpenses
-    .filter((candidate) => candidate.category === expense.category && monthKey(candidate.date) === monthFilter)
+    .filter((candidate) => candidate.category === expense.category && isInDateRange(candidate.date, dateStart, dateEnd))
     .reduce((sum, candidate) => sum + candidate.amount, 0);
 
   return budgets[expense.category] > 0 ? spent / budgets[expense.category] : 0;
+}
+
+function isInDateRange(date: string, dateStart: string, dateEnd: string) {
+  if (dateStart && date < dateStart) return false;
+  if (dateEnd && date > dateEnd) return false;
+  return true;
+}
+
+function getRangeDays(dateStart: string, dateEnd: string) {
+  if (!dateStart || !dateEnd || dateStart > dateEnd) return 1;
+
+  const start = new Date(`${dateStart}T00:00:00`);
+  const end = new Date(`${dateEnd}T00:00:00`);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  return Math.max(days, 1);
+}
+
+function validateExpenseForm(form: typeof emptyForm): FormErrors {
+  const amount = Number(form.amount);
+  const errors: FormErrors = {};
+
+  if (!form.title.trim()) errors.title = "Description is required.";
+  if (!form.amount || Number.isNaN(amount) || amount <= 0) errors.amount = "Enter an amount greater than zero.";
+  if (!form.date) errors.date = "Date is required.";
+
+  return errors;
+}
+
+function normalizeExpense(expense: Expense): Expense {
+  return {
+    ...expense,
+    category: normalizeCategory(expense.category),
+    paymentMethod: paymentMethods.includes(expense.paymentMethod) ? expense.paymentMethod : "Card",
+    recurring: Boolean(expense.recurring),
+  };
+}
+
+function normalizeBudgets(savedBudgets?: Partial<Record<string, number>>) {
+  const budgets = { ...defaultBudgets };
+
+  if (!savedBudgets) return budgets;
+
+  Object.entries(savedBudgets).forEach(([category, budget]) => {
+    const normalizedCategory = normalizeCategory(category);
+    budgets[normalizedCategory] = Math.max(0, Number(budget) || 0);
+  });
+
+  return budgets;
+}
+
+function normalizeCategory(category: string): ExpenseCategory {
+  if (categories.includes(category as ExpenseCategory)) return category as ExpenseCategory;
+  if (["Transport", "Travel"].includes(category)) return "Transportation";
+  if (["Housing", "Utilities"].includes(category)) return "Bills";
+  if (["Healthcare", "Savings"].includes(category)) return "Other";
+  return "Other";
 }

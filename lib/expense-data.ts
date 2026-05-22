@@ -1,13 +1,9 @@
 export type ExpenseCategory =
-  | "Housing"
   | "Food"
-  | "Transport"
-  | "Utilities"
-  | "Healthcare"
-  | "Shopping"
+  | "Transportation"
   | "Entertainment"
-  | "Travel"
-  | "Savings"
+  | "Shopping"
+  | "Bills"
   | "Other";
 
 export type Expense = {
@@ -24,41 +20,29 @@ export type Expense = {
 export type Budget = Record<ExpenseCategory, number>;
 
 export const categories: ExpenseCategory[] = [
-  "Housing",
   "Food",
-  "Transport",
-  "Utilities",
-  "Healthcare",
-  "Shopping",
+  "Transportation",
   "Entertainment",
-  "Travel",
-  "Savings",
+  "Shopping",
+  "Bills",
   "Other",
 ];
 
 export const categoryColors: Record<ExpenseCategory, string> = {
-  Housing: "#3457d5",
   Food: "#1aa878",
-  Transport: "#f5a524",
-  Utilities: "#06b6d4",
-  Healthcare: "#ef4444",
-  Shopping: "#a855f7",
+  Transportation: "#3457d5",
   Entertainment: "#ec4899",
-  Travel: "#14b8a6",
-  Savings: "#64748b",
+  Shopping: "#a855f7",
+  Bills: "#f5a524",
   Other: "#71717a",
 };
 
 export const defaultBudgets: Budget = {
-  Housing: 1500,
   Food: 650,
-  Transport: 320,
-  Utilities: 280,
-  Healthcare: 260,
-  Shopping: 420,
+  Transportation: 320,
   Entertainment: 260,
-  Travel: 450,
-  Savings: 800,
+  Shopping: 420,
+  Bills: 1800,
   Other: 250,
 };
 
@@ -67,7 +51,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-1",
     title: "Apartment rent",
     amount: 1450,
-    category: "Housing",
+    category: "Bills",
     date: "2026-05-01",
     note: "Monthly lease payment",
     recurring: true,
@@ -87,7 +71,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-3",
     title: "Metro card top-up",
     amount: 55,
-    category: "Transport",
+    category: "Transportation",
     date: "2026-05-06",
     recurring: false,
     paymentMethod: "Card",
@@ -96,7 +80,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-4",
     title: "Electricity bill",
     amount: 89.2,
-    category: "Utilities",
+    category: "Bills",
     date: "2026-05-09",
     recurring: true,
     paymentMethod: "Bank",
@@ -114,7 +98,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-6",
     title: "Pharmacy",
     amount: 38.9,
-    category: "Healthcare",
+    category: "Other",
     date: "2026-05-13",
     recurring: false,
     paymentMethod: "Card",
@@ -123,7 +107,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-7",
     title: "Weekend getaway booking",
     amount: 312,
-    category: "Travel",
+    category: "Entertainment",
     date: "2026-05-15",
     recurring: false,
     paymentMethod: "Card",
@@ -132,7 +116,7 @@ export const seedExpenses: Expense[] = [
     id: "seed-8",
     title: "Index fund contribution",
     amount: 500,
-    category: "Savings",
+    category: "Other",
     date: "2026-05-18",
     recurring: true,
     paymentMethod: "Bank",
