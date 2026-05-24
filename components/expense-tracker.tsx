@@ -25,10 +25,13 @@ import {
 import {
   Banknote,
   CalendarDays,
+  CheckCircle2,
   CreditCard,
   Download,
   Edit3,
   Filter,
+  Gauge,
+  Lightbulb,
   LayoutGrid,
   Layers3,
   ListFilter,
@@ -37,10 +40,14 @@ import {
   RefreshCcw,
   Search,
   SlidersHorizontal,
+  Sparkles,
+  Target,
   Trash2,
   TrendingDown,
+  TrendingUp,
   X,
   WalletCards,
+  Zap,
 } from "lucide-react";
 import {
   Budget,
@@ -67,6 +74,19 @@ type RecurringFilter = "All" | "Recurring" | "One-time";
 type BudgetFilter = "All" | "Over budget" | "Near limit" | "Within budget";
 type SmartView = "All" | "Needs review" | "Recurring bills" | "Large purchases" | "Discretionary";
 type FormErrors = Partial<Record<"title" | "amount" | "date" | "range", string>>;
+type CoachAction = {
+  title: string;
+  detail: string;
+  impact: string;
+  priority: "High" | "Medium" | "Low";
+  icon: React.ReactNode;
+};
+type CategoryTotal = {
+  category: ExpenseCategory;
+  spent: number;
+  budget: number;
+  percent: number;
+};
 
 const sortOptions: { key: SortKey; label: string }[] = [
   { key: "date-desc", label: "Newest first" },
@@ -225,6 +245,10 @@ export function ExpenseTracker() {
       };
     });
   }, [budgets, dateEnd, dateStart, expenses]);
+
+  const moneyCoach = useMemo(() => {
+    return buildMoneyCoach(expenses, categoryTotals, dateStart, dateEnd, totals);
+  }, [categoryTotals, dateEnd, dateStart, expenses, totals]);
 
   const topCategories = [...categoryTotals]
     .filter((item) => item.spent > 0)
@@ -414,6 +438,72 @@ export function ExpenseTracker() {
           <MetricCard icon={<Banknote size={20} />} label="Budget left" value={formatCurrency(totals.remaining)} detail={`${Math.round((totals.total / totals.budgetTotal) * 100)}% of total budget used`} tone={totals.remaining < 0 ? "danger" : "success"} />
           <MetricCard icon={<CalendarDays size={20} />} label="Daily average" value={formatCurrency(totals.dailyAverage)} detail={rangeLabel} />
           <MetricCard icon={<CreditCard size={20} />} label="Recurring" value={formatCurrency(totals.recurring)} detail="Scheduled monthly expenses" />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[minmax(300px,0.9fr)_1.4fr_1fr]">
+          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <CardBody className="gap-4 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
+                    <Sparkles size={17} />
+                    Money Coach
+                  </div>
+                  <h2 className="text-xl font-semibold text-slate-950">{moneyCoach.status}</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">{moneyCoach.summary}</p>
+                </div>
+                <div className={`rounded-lg px-3 py-2 text-right ${moneyCoach.score >= 75 ? "bg-primary-50 text-primary-700" : moneyCoach.score >= 55 ? "bg-warning-50 text-warning-700" : "bg-danger-50 text-danger-700"}`}>
+                  <p className="text-xs font-medium uppercase tracking-normal">Score</p>
+                  <p className="text-2xl font-semibold">{moneyCoach.score}</p>
+                </div>
+              </div>
+              <Progress
+                aria-label="Money health score"
+                color={moneyCoach.score >= 75 ? "primary" : moneyCoach.score >= 55 ? "warning" : "danger"}
+                value={moneyCoach.score}
+              />
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <MiniStat label="Forecast" value={formatCurrency(moneyCoach.forecast)} tone={moneyCoach.forecast > totals.budgetTotal ? "danger" : "default"} />
+                <MiniStat label="Runway" value={`${moneyCoach.runwayDays}d`} tone={moneyCoach.runwayDays < 7 ? "danger" : "default"} />
+                <MiniStat label="Savings" value={formatCurrency(moneyCoach.savingsOpportunity)} tone="success" />
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <CardHeader className="flex items-center justify-between gap-3 px-5 pt-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Recommended actions</h2>
+                <p className="text-sm text-slate-500">Prioritized from budget pressure, recurring spend, and transaction patterns.</p>
+              </div>
+              <Chip color={moneyCoach.highPriorityCount > 0 ? "danger" : "primary"} variant="flat">
+                {moneyCoach.highPriorityCount} urgent
+              </Chip>
+            </CardHeader>
+            <CardBody className="grid gap-3 px-5 pb-5 md:grid-cols-3">
+              {moneyCoach.actions.map((action) => (
+                <CoachActionCard key={action.title} action={action} />
+              ))}
+            </CardBody>
+          </Card>
+
+          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <CardHeader className="flex-col items-start gap-1 px-5 pt-5">
+              <h2 className="text-lg font-semibold text-slate-950">Spending rhythm</h2>
+              <p className="text-sm text-slate-500">See where this month is drifting before it becomes expensive.</p>
+            </CardHeader>
+            <CardBody className="gap-4 px-5 pb-5">
+              {moneyCoach.watchList.map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-slate-900">{item.label}</p>
+                    <p className="text-sm text-slate-500">{item.value}</p>
+                  </div>
+                  <Progress aria-label={`${item.label} usage`} color={item.percent > 90 ? "danger" : item.percent > 70 ? "warning" : "primary"} size="sm" value={item.percent} />
+                </div>
+              ))}
+            </CardBody>
+          </Card>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[minmax(340px,420px)_1fr]">
@@ -669,6 +759,37 @@ function MetricCard({ icon, label, value, detail, tone = "default" }: { icon: Re
   );
 }
 
+function MiniStat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "success" | "danger" }) {
+  const toneClass = tone === "success" ? "text-primary" : tone === "danger" ? "text-danger" : "text-slate-950";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`truncate text-base font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function CoachActionCard({ action }: { action: CoachAction }) {
+  const priorityColor = action.priority === "High" ? "danger" : action.priority === "Medium" ? "warning" : "primary";
+
+  return (
+    <div className="flex min-h-[164px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{action.icon}</span>
+          <Chip color={priorityColor} size="sm" variant="flat">{action.priority}</Chip>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">{action.title}</h3>
+          <p className="mt-1 text-sm leading-5 text-slate-500">{action.detail}</p>
+        </div>
+      </div>
+      <p className="mt-4 text-sm font-medium text-primary">{action.impact}</p>
+    </div>
+  );
+}
+
 function ExpenseTable({ expenses, onEdit, onRemove }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onRemove: (id: string) => void }) {
   return (
     <Table removeWrapper aria-label="Expense transactions" classNames={{ th: "bg-slate-50 text-slate-600", td: "py-4" }}>
@@ -808,6 +929,211 @@ function getRangeDays(dateStart: string, dateEnd: string) {
   const end = new Date(`${dateEnd}T00:00:00`);
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   return Math.max(days, 1);
+}
+
+function buildMoneyCoach(
+  expenses: Expense[],
+  categoryTotals: CategoryTotal[],
+  dateStart: string,
+  dateEnd: string,
+  totals: { total: number; recurring: number; budgetTotal: number; remaining: number; dailyAverage: number; transactionCount: number },
+) {
+  const rangeDays = getRangeDays(dateStart, dateEnd);
+  const elapsedDays = getElapsedDays(dateStart, dateEnd);
+  const rangeExpenses = expenses.filter((expense) => isInDateRange(expense.date, dateStart, dateEnd));
+  const forecast = Math.round(totals.dailyAverage * rangeDays);
+  const discretionary = rangeExpenses
+    .filter((expense) => ["Entertainment", "Shopping"].includes(expense.category))
+    .reduce((sum, expense) => sum + expense.amount, 0);
+  const highValueItems = rangeExpenses.filter((expense) => expense.amount >= Math.max(100, totals.dailyAverage * 2));
+  const overBudget = categoryTotals.filter((item) => item.budget > 0 && item.spent > item.budget);
+  const nearLimit = categoryTotals.filter((item) => item.budget > 0 && item.percent >= 75 && item.percent <= 100);
+  const biggestCategory = [...categoryTotals].sort((a, b) => b.spent - a.spent)[0];
+  const recurringShare = totals.total > 0 ? totals.recurring / totals.total : 0;
+  const paceRatio = totals.budgetTotal > 0 ? forecast / totals.budgetTotal : 0;
+  const savingsOpportunity = Math.round(discretionary * 0.18 + Math.max(0, totals.recurring - totals.budgetTotal * 0.35) * 0.25);
+  const runwayDays = totals.dailyAverage > 0 ? Math.max(0, Math.floor(totals.remaining / totals.dailyAverage)) : rangeDays;
+
+  const score = clamp(
+    Math.round(
+      92
+        - Math.max(0, paceRatio - 0.82) * 60
+        - overBudget.length * 13
+        - nearLimit.length * 5
+        - Math.max(0, recurringShare - 0.35) * 24
+        - highValueItems.length * 3,
+    ),
+    28,
+    98,
+  );
+
+  const actions = buildCoachActions({
+    biggestCategory,
+    discretionary,
+    forecast,
+    highValueItems,
+    nearLimit,
+    overBudget,
+    recurringShare,
+    savingsOpportunity,
+    totals,
+  });
+
+  const watchList = [
+    {
+      label: "Budget pace",
+      value: `${Math.round(paceRatio * 100)}% projected`,
+      percent: clamp(Math.round(paceRatio * 100), 0, 100),
+    },
+    {
+      label: "Recurring load",
+      value: `${Math.round(recurringShare * 100)}% of spend`,
+      percent: clamp(Math.round(recurringShare * 100), 0, 100),
+    },
+    {
+      label: "Month progress",
+      value: `${elapsedDays}/${rangeDays} days`,
+      percent: clamp(Math.round((elapsedDays / rangeDays) * 100), 0, 100),
+    },
+  ];
+
+  const status = score >= 75 ? "On track with room to optimize" : score >= 55 ? "Watch the pace this month" : "Action needed to protect budget";
+  const summary =
+    forecast > totals.budgetTotal
+      ? `At the current pace, spending may land ${formatCurrency(forecast - totals.budgetTotal)} over budget.`
+      : `At the current pace, spending may finish ${formatCurrency(totals.budgetTotal - forecast)} under budget.`;
+
+  return {
+    actions,
+    forecast,
+    highPriorityCount: actions.filter((action) => action.priority === "High").length,
+    runwayDays,
+    savingsOpportunity,
+    score,
+    status,
+    summary,
+    watchList,
+  };
+}
+
+function buildCoachActions({
+  biggestCategory,
+  discretionary,
+  forecast,
+  highValueItems,
+  nearLimit,
+  overBudget,
+  recurringShare,
+  savingsOpportunity,
+  totals,
+}: {
+  biggestCategory?: CategoryTotal;
+  discretionary: number;
+  forecast: number;
+  highValueItems: Expense[];
+  nearLimit: CategoryTotal[];
+  overBudget: CategoryTotal[];
+  recurringShare: number;
+  savingsOpportunity: number;
+  totals: { total: number; recurring: number; budgetTotal: number; remaining: number; dailyAverage: number; transactionCount: number };
+}) {
+  const actions: CoachAction[] = [];
+
+  if (overBudget.length > 0) {
+    const category = overBudget[0];
+    actions.push({
+      title: `Pause ${category.category} spend`,
+      detail: `${category.category} is ${formatCurrency(category.spent - category.budget)} over its budget.`,
+      impact: "Highest immediate recovery",
+      priority: "High",
+      icon: <Zap size={18} />,
+    });
+  }
+
+  if (forecast > totals.budgetTotal) {
+    actions.push({
+      title: "Set a weekly guardrail",
+      detail: `Keep new spending below ${formatCurrency(Math.max(0, totals.remaining) / 2)} per week to narrow the forecast gap.`,
+      impact: `${formatCurrency(forecast - totals.budgetTotal)} projected risk`,
+      priority: "High",
+      icon: <Gauge size={18} />,
+    });
+  }
+
+  if (recurringShare > 0.35) {
+    actions.push({
+      title: "Review recurring payments",
+      detail: `Recurring items represent ${Math.round(recurringShare * 100)}% of current spend.`,
+      impact: "Best place for permanent savings",
+      priority: "Medium",
+      icon: <RefreshCcw size={18} />,
+    });
+  }
+
+  if (nearLimit.length > 0) {
+    actions.push({
+      title: `Protect ${nearLimit[0].category}`,
+      detail: `${nearLimit[0].category} has used ${nearLimit[0].percent}% of its budget.`,
+      impact: "Prevents the next overrun",
+      priority: "Medium",
+      icon: <Target size={18} />,
+    });
+  }
+
+  if (highValueItems.length > 0) {
+    actions.push({
+      title: "Audit large purchases",
+      detail: `${highValueItems.length} transaction${highValueItems.length === 1 ? "" : "s"} crossed the review threshold.`,
+      impact: "Catch mistakes and impulse buys",
+      priority: "Low",
+      icon: <Search size={18} />,
+    });
+  }
+
+  if (discretionary > 0) {
+    actions.push({
+      title: "Trim flexible categories",
+      detail: `Entertainment and shopping total ${formatCurrency(discretionary)} in this range.`,
+      impact: `${formatCurrency(savingsOpportunity)} realistic savings`,
+      priority: "Low",
+      icon: <TrendingUp size={18} />,
+    });
+  }
+
+  if (actions.length === 0 && biggestCategory) {
+    actions.push({
+      title: `Keep ${biggestCategory.category} visible`,
+      detail: `${biggestCategory.category} is the largest category at ${formatCurrency(biggestCategory.spent)}.`,
+      impact: "Maintains current momentum",
+      priority: "Low",
+      icon: <CheckCircle2 size={18} />,
+    });
+  }
+
+  actions.push({
+    title: "Add notes to every expense",
+    detail: "Clear notes make search, reviews, and export handoffs easier.",
+    impact: "Improves month-end review",
+    priority: "Low",
+    icon: <Lightbulb size={18} />,
+  });
+
+  return actions.slice(0, 3);
+}
+
+function getElapsedDays(dateStart: string, dateEnd: string) {
+  if (!dateStart || !dateEnd || dateStart > dateEnd) return 1;
+
+  const today = new Date();
+  const start = new Date(`${dateStart}T00:00:00`);
+  const end = new Date(`${dateEnd}T00:00:00`);
+  const effectiveEnd = new Date(Math.min(today.getTime(), end.getTime()));
+  const days = Math.round((effectiveEnd.getTime() - start.getTime()) / 86_400_000) + 1;
+  return clamp(days, 1, getRangeDays(dateStart, dateEnd));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function validateExpenseForm(form: typeof emptyForm): FormErrors {
