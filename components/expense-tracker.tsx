@@ -35,12 +35,14 @@ import {
   LayoutGrid,
   Layers3,
   ListFilter,
+  Moon,
   Plus,
   ReceiptText,
   RefreshCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   Target,
   Trash2,
   TrendingDown,
@@ -49,6 +51,7 @@ import {
   WalletCards,
   Zap,
 } from "lucide-react";
+import { useThemeMode } from "@/app/providers";
 import {
   Budget,
   Expense,
@@ -122,6 +125,7 @@ const emptyForm = {
 };
 
 export function ExpenseTracker() {
+  const { theme, toggleTheme } = useThemeMode();
   const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
   const [budgets, setBudgets] = useState<Budget>(defaultBudgets);
   const [form, setForm] = useState(emptyForm);
@@ -406,6 +410,13 @@ export function ExpenseTracker() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              startContent={theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              variant="bordered"
+              onPress={toggleTheme}
+            >
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </Button>
             <Button color="primary" startContent={<Download size={18} />} variant="flat" onPress={exportCsv}>
               Export CSV
             </Button>
