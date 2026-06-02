@@ -9,16 +9,23 @@ import {
   Chip,
   Divider,
   Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Progress,
   Select,
   SelectItem,
   Switch,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableColumn,
   TableHeader,
   TableRow,
+  Tabs,
   Textarea,
   Tooltip,
 } from "@nextui-org/react";
@@ -26,20 +33,32 @@ import {
   Banknote,
   CalendarDays,
   CheckCircle2,
+  Clock,
+  Cloud,
+  CloudUpload,
+  Copy,
   CreditCard,
-  Download,
+  FileSpreadsheet,
+  Folder,
   Edit3,
   Filter,
   Gauge,
+  History,
+  Link2,
   Lightbulb,
   LayoutGrid,
   Layers3,
   ListFilter,
+  Mail,
   Moon,
   Plus,
+  QrCode,
   ReceiptText,
   RefreshCcw,
   Search,
+  Send,
+  Share2,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -76,6 +95,17 @@ type PaymentFilter = "All" | Expense["paymentMethod"];
 type RecurringFilter = "All" | "Recurring" | "One-time";
 type BudgetFilter = "All" | "Over budget" | "Near limit" | "Within budget";
 type SmartView = "All" | "Needs review" | "Recurring bills" | "Large purchases" | "Discretionary";
+type ExportTemplate = "Tax Report" | "Monthly Summary" | "Category Analysis";
+type CloudProvider = "Google Sheets" | "Dropbox" | "OneDrive" | "Email";
+type BackupFrequency = "Off" | "Weekly" | "Monthly" | "Quarterly";
+type ExportHistoryEntry = {
+  id: string;
+  action: string;
+  destination: string;
+  template: ExportTemplate;
+  timestamp: string;
+  status: "Completed" | "Scheduled" | "Shared";
+};
 type FormErrors = Partial<Record<"title" | "amount" | "date" | "range", string>>;
 type CoachAction = {
   title: string;
@@ -107,6 +137,61 @@ const smartViews: { key: SmartView; label: string }[] = [
   { key: "Recurring bills", label: "Recurring bills" },
   { key: "Large purchases", label: "Large purchases" },
   { key: "Discretionary", label: "Discretionary" },
+];
+
+const exportTemplates: { name: ExportTemplate; detail: string; fields: string; accent: string }[] = [
+  {
+    name: "Tax Report",
+    detail: "Deduction-ready export with dates, categories, notes, and totals.",
+    fields: "Date, category, amount, notes",
+    accent: "#0f766e",
+  },
+  {
+    name: "Monthly Summary",
+    detail: "Executive snapshot for recurring finance reviews and budget meetings.",
+    fields: "Totals, recurring spend, budget variance",
+    accent: "#3457d5",
+  },
+  {
+    name: "Category Analysis",
+    detail: "Category rollups designed for pivots, charts, and trend reviews.",
+    fields: "Category, transaction count, spend share",
+    accent: "#a855f7",
+  },
+];
+
+const cloudIntegrations: { name: CloudProvider; detail: string; status: "Connected" | "Ready" | "Mock setup"; icon: React.ReactNode }[] = [
+  { name: "Google Sheets", detail: "Sync exports into a shared workbook.", status: "Connected", icon: <FileSpreadsheet size={18} /> },
+  { name: "Dropbox", detail: "Archive monthly reports in cloud folders.", status: "Ready", icon: <Folder size={18} /> },
+  { name: "OneDrive", detail: "Keep finance backups near Office files.", status: "Ready", icon: <Cloud size={18} /> },
+  { name: "Email", detail: "Send reports to yourself or collaborators.", status: "Mock setup", icon: <Mail size={18} /> },
+];
+
+const initialExportHistory: ExportHistoryEntry[] = [
+  {
+    id: "hist-1",
+    action: "Monthly Summary synced",
+    destination: "Google Sheets",
+    template: "Monthly Summary",
+    timestamp: "2026-05-31 18:42",
+    status: "Completed",
+  },
+  {
+    id: "hist-2",
+    action: "Tax Report shared",
+    destination: "Secure link",
+    template: "Tax Report",
+    timestamp: "2026-05-15 09:10",
+    status: "Shared",
+  },
+  {
+    id: "hist-3",
+    action: "Category Analysis backup",
+    destination: "Dropbox",
+    template: "Category Analysis",
+    timestamp: "2026-05-01 07:00",
+    status: "Scheduled",
+  },
 ];
 
 type StoredData = {
@@ -146,6 +231,15 @@ export function ExpenseTracker() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("table");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
+  const [isCloudExportOpen, setIsCloudExportOpen] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<ExportTemplate>("Monthly Summary");
+  const [cloudProvider, setCloudProvider] = useState<CloudProvider>("Google Sheets");
+  const [backupFrequency, setBackupFrequency] = useState<BackupFrequency>("Monthly");
+  const [recipientEmail, setRecipientEmail] = useState("finance@example.com");
+  const [shareLink, setShareLink] = useState("https://expense-desk.app/share/may-summary-8f42");
+  const [isQrVisible, setIsQrVisible] = useState(false);
+  const [isCloudProcessing, setIsCloudProcessing] = useState(false);
+  const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>(initialExportHistory);
 
   useEffect(() => {
     try {
@@ -261,6 +355,8 @@ export function ExpenseTracker() {
 
   const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const filteredAverage = filteredExpenses.length > 0 ? filteredTotal / filteredExpenses.length : 0;
+  const cloudSyncTotal = expenses.filter((expense) => isInDateRange(expense.date, currentMonthStart, currentMonthEnd)).reduce((sum, expense) => sum + expense.amount, 0);
+  const cloudSyncSummary = `${expenses.length} records ready, ${formatCurrency(cloudSyncTotal)} this month`;
 
   const groupedByCategory = useMemo(() => {
     return categories
@@ -369,28 +465,24 @@ export function ExpenseTracker() {
     setFeedback("Demo data restored.");
   }
 
-  function exportCsv() {
-    const rows = [
-      ["Date", "Title", "Category", "Amount", "Payment method", "Recurring", "Note"],
-      ...filteredExpenses.map((expense) => [
-        expense.date,
-        expense.title,
-        expense.category,
-        expense.amount.toFixed(2),
-        expense.paymentMethod,
-        expense.recurring ? "Yes" : "No",
-        expense.note ?? "",
-      ]),
-    ];
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `expenses-${dateStart || "start"}-to-${dateEnd || "end"}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setFeedback("CSV export created.");
+  function openCloudExport() {
+    setIsCloudExportOpen(true);
+  }
+
+  async function simulateCloudExport(action: "sync" | "email" | "backup" | "share") {
+    setIsCloudProcessing(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 650));
+
+    const entry = createCloudHistoryEntry(action, activeTemplate, cloudProvider, recipientEmail);
+    setExportHistory((current) => [entry, ...current].slice(0, 6));
+
+    if (action === "share") {
+      setShareLink(`https://expense-desk.app/share/${activeTemplate.toLowerCase().replaceAll(" ", "-")}-${Math.random().toString(16).slice(2, 6)}`);
+      setIsQrVisible(true);
+    }
+
+    setIsCloudProcessing(false);
+    setFeedback(getCloudFeedback(action, activeTemplate, cloudProvider));
   }
 
   return (
@@ -417,8 +509,8 @@ export function ExpenseTracker() {
             >
               {theme === "dark" ? "Light mode" : "Dark mode"}
             </Button>
-            <Button color="primary" startContent={<Download size={18} />} variant="flat" onPress={exportCsv}>
-              Export CSV
+            <Button color="primary" startContent={<CloudUpload size={18} />} variant="flat" onPress={openCloudExport}>
+              Cloud Export
             </Button>
             <Button startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
               Reset
@@ -443,6 +535,206 @@ export function ExpenseTracker() {
             {feedback}
           </div>
         ) : null}
+
+        <Modal isOpen={isCloudExportOpen} scrollBehavior="inside" size="5xl" onOpenChange={setIsCloudExportOpen}>
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <CloudUpload size={21} />
+                      Cloud export center
+                    </div>
+                    <CloudStatusPill label="Live sync ready" tone="success" />
+                  </div>
+                  <p className="text-sm font-normal text-slate-500">
+                    Publish reports, share secure links, schedule backups, and connect your expense data to the tools your team already uses.
+                  </p>
+                </ModalHeader>
+                <ModalBody className="gap-5">
+                  <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-950 to-primary p-4 text-white">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-white/70">Workspace sync</p>
+                            <h2 className="mt-1 text-2xl font-semibold tracking-normal">Expenses are ready for cloud workflows.</h2>
+                            <p className="mt-2 text-sm text-white/75">{cloudSyncSummary}</p>
+                          </div>
+                          <div className="rounded-lg bg-white/15 px-3 py-2 text-right">
+                            <p className="text-xs uppercase tracking-normal text-white/60">Next backup</p>
+                            <p className="text-sm font-semibold">{backupFrequency === "Off" ? "Paused" : `${backupFrequency} cycle`}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Tabs aria-label="Cloud export workflows" color="primary" variant="underlined">
+                        <Tab key="templates" title="Templates">
+                          <div className="grid gap-3 pt-3 md:grid-cols-3">
+                            {exportTemplates.map((template) => (
+                              <TemplateOption
+                                key={template.name}
+                                template={template}
+                                isSelected={activeTemplate === template.name}
+                                onSelect={() => setActiveTemplate(template.name)}
+                              />
+                            ))}
+                          </div>
+                        </Tab>
+                        <Tab key="services" title="Services">
+                          <div className="grid gap-3 pt-3 md:grid-cols-2">
+                            {cloudIntegrations.map((integration) => (
+                              <IntegrationTile
+                                key={integration.name}
+                                integration={integration}
+                                isSelected={cloudProvider === integration.name}
+                                onSelect={() => setCloudProvider(integration.name)}
+                              />
+                            ))}
+                          </div>
+                        </Tab>
+                        <Tab key="schedule" title="Automations">
+                          <div className="grid gap-3 pt-3 md:grid-cols-[1fr_1fr]">
+                            <div className="rounded-lg border border-slate-200 p-4">
+                              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
+                                <Clock size={17} />
+                                Recurring backups
+                              </div>
+                              <Select
+                                label="Backup schedule"
+                                selectedKeys={[backupFrequency]}
+                                onSelectionChange={(keys) => setBackupFrequency(Array.from(keys)[0] as BackupFrequency)}
+                              >
+                                {(["Off", "Weekly", "Monthly", "Quarterly"] as const).map((frequency) => (
+                                  <SelectItem key={frequency}>{frequency}</SelectItem>
+                                ))}
+                              </Select>
+                              <p className="mt-3 text-sm leading-5 text-slate-500">
+                                Scheduled exports run in the background and write the selected template to {cloudProvider}.
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 p-4">
+                              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
+                                <ShieldCheck size={17} />
+                                Sync safeguards
+                              </div>
+                              <div className="space-y-2 text-sm text-slate-600">
+                                <CloudStatusPill label="Encrypted in transit" tone="success" />
+                                <CloudStatusPill label="Version history enabled" tone="default" />
+                                <CloudStatusPill label="Owner approval required" tone="warning" />
+                              </div>
+                            </div>
+                          </div>
+                        </Tab>
+                      </Tabs>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-slate-200 p-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
+                            <Mail size={17} />
+                            Email export
+                          </div>
+                          <Input
+                            label="Recipient"
+                            placeholder="finance@example.com"
+                            type="email"
+                            value={recipientEmail}
+                            onValueChange={setRecipientEmail}
+                          />
+                          <Button
+                            className="mt-3"
+                            color="primary"
+                            isLoading={isCloudProcessing}
+                            startContent={isCloudProcessing ? undefined : <Send size={17} />}
+                            variant="flat"
+                            onPress={() => simulateCloudExport("email")}
+                          >
+                            Send report
+                          </Button>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 p-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
+                            <Share2 size={17} />
+                            Share workspace snapshot
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                            <p className="truncate">{shareLink}</p>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button size="sm" startContent={<Link2 size={16} />} variant="flat" onPress={() => simulateCloudExport("share")}>
+                              Generate link
+                            </Button>
+                            <Button size="sm" startContent={<Copy size={16} />} variant="flat" onPress={() => setFeedback("Share link copied to clipboard simulation.")}>
+                              Copy
+                            </Button>
+                            <Button size="sm" startContent={<QrCode size={16} />} variant="flat" onPress={() => setIsQrVisible((current) => !current)}>
+                              QR
+                            </Button>
+                          </div>
+                          {isQrVisible ? <MiniQrCode value={shareLink} /> : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">Cloud destination</p>
+                            <p className="text-xs text-slate-500">{activeTemplate} will publish to {cloudProvider}.</p>
+                          </div>
+                          <CloudStatusPill label="Mock connected" tone="success" />
+                        </div>
+                        <div className="space-y-2">
+                          <Button
+                            fullWidth
+                            color="primary"
+                            isLoading={isCloudProcessing}
+                            startContent={isCloudProcessing ? undefined : <FileSpreadsheet size={18} />}
+                            onPress={() => simulateCloudExport("sync")}
+                          >
+                            Sync to {cloudProvider}
+                          </Button>
+                          <Button
+                            fullWidth
+                            isLoading={isCloudProcessing}
+                            startContent={isCloudProcessing ? undefined : <Clock size={18} />}
+                            variant="bordered"
+                            onPress={() => simulateCloudExport("backup")}
+                          >
+                            Schedule backup
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
+                          <History size={17} />
+                          Export history
+                        </div>
+                        <div className="space-y-3">
+                          {exportHistory.map((entry) => (
+                            <ExportHistoryRow key={entry.id} entry={entry} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="flat" onPress={onClose}>
+                    Close
+                  </Button>
+                  <Button color="primary" startContent={<Cloud size={18} />} onPress={() => simulateCloudExport("sync")}>
+                    Publish selected workflow
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={<TrendingDown size={20} />} label="Spent in range" value={formatCurrency(totals.total)} detail={`${totals.transactionCount} transactions`} />
@@ -904,6 +1196,170 @@ function EmptyState() {
       <p className="font-medium text-slate-700">No expenses match these filters.</p>
     </div>
   );
+}
+
+function TemplateOption({
+  template,
+  isSelected,
+  onSelect,
+}: {
+  template: { name: ExportTemplate; detail: string; fields: string; accent: string };
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={`min-h-[178px] rounded-lg border p-4 text-left transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white hover:border-primary-200"}`}
+      type="button"
+      onClick={onSelect}
+    >
+      <span className="mb-4 block h-1.5 w-12 rounded-full" style={{ backgroundColor: template.accent }} />
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-950">{template.name}</h3>
+        {isSelected ? <CheckCircle2 className="text-primary" size={18} /> : null}
+      </div>
+      <p className="mt-2 text-sm leading-5 text-slate-500">{template.detail}</p>
+      <p className="mt-3 text-xs font-medium text-slate-400">{template.fields}</p>
+    </button>
+  );
+}
+
+function IntegrationTile({
+  integration,
+  isSelected,
+  onSelect,
+}: {
+  integration: { name: CloudProvider; detail: string; status: "Connected" | "Ready" | "Mock setup"; icon: React.ReactNode };
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={`rounded-lg border p-4 text-left transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white hover:border-primary-200"}`}
+      type="button"
+      onClick={onSelect}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{integration.icon}</span>
+        <CloudStatusPill label={integration.status} tone={integration.status === "Connected" ? "success" : "default"} />
+      </div>
+      <h3 className="mt-3 text-sm font-semibold text-slate-950">{integration.name}</h3>
+      <p className="mt-1 text-sm leading-5 text-slate-500">{integration.detail}</p>
+    </button>
+  );
+}
+
+function CloudStatusPill({ label, tone }: { label: string; tone: "success" | "warning" | "default" }) {
+  const toneClass =
+    tone === "success"
+      ? "border-primary-200 bg-primary-50 text-primary-700"
+      : tone === "warning"
+        ? "border-warning-200 bg-warning-50 text-warning-700"
+        : "border-slate-200 bg-slate-50 text-slate-600";
+
+  return (
+    <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${toneClass}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
+function ExportHistoryRow({ entry }: { entry: ExportHistoryEntry }) {
+  const tone = entry.status === "Completed" ? "success" : entry.status === "Scheduled" ? "warning" : "default";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-950">{entry.action}</p>
+          <p className="mt-1 text-xs text-slate-500">{entry.destination} · {entry.timestamp}</p>
+        </div>
+        <CloudStatusPill label={entry.status} tone={tone} />
+      </div>
+      <p className="mt-2 text-xs font-medium text-slate-400">{entry.template}</p>
+    </div>
+  );
+}
+
+function MiniQrCode({ value }: { value: string }) {
+  const cells = Array.from({ length: 49 }, (_, index) => {
+    const code = value.charCodeAt(index % value.length);
+    return (code + index * 7) % 3 !== 0;
+  });
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+      <div className="grid h-20 w-20 grid-cols-7 gap-1 rounded-md bg-white p-1">
+        {cells.map((isFilled, index) => (
+          <span key={index} className={`rounded-[1px] ${isFilled ? "bg-slate-950" : "bg-slate-100"}`} />
+        ))}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-900">Share QR ready</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">Mock code for the generated secure link.</p>
+      </div>
+    </div>
+  );
+}
+
+function createCloudHistoryEntry(action: "sync" | "email" | "backup" | "share", template: ExportTemplate, provider: CloudProvider, recipientEmail: string): ExportHistoryEntry {
+  const timestamp = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date());
+
+  if (action === "email") {
+    return {
+      id: crypto.randomUUID(),
+      action: `${template} emailed`,
+      destination: recipientEmail,
+      template,
+      timestamp,
+      status: "Completed",
+    };
+  }
+
+  if (action === "backup") {
+    return {
+      id: crypto.randomUUID(),
+      action: `${template} backup scheduled`,
+      destination: provider,
+      template,
+      timestamp,
+      status: "Scheduled",
+    };
+  }
+
+  if (action === "share") {
+    return {
+      id: crypto.randomUUID(),
+      action: `${template} link generated`,
+      destination: "Secure link",
+      template,
+      timestamp,
+      status: "Shared",
+    };
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    action: `${template} synced`,
+    destination: provider,
+    template,
+    timestamp,
+    status: "Completed",
+  };
+}
+
+function getCloudFeedback(action: "sync" | "email" | "backup" | "share", template: ExportTemplate, provider: CloudProvider) {
+  if (action === "email") return `${template} email export queued.`;
+  if (action === "backup") return `${template} backup scheduled for ${provider}.`;
+  if (action === "share") return `${template} share link generated.`;
+  return `${template} synced to ${provider}.`;
 }
 
 function sortExpenses(a: Expense, b: Expense, sortKey: SortKey, allExpenses: Expense[], budgets: Budget, dateStart: string, dateEnd: string) {
