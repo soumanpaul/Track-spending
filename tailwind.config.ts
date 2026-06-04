@@ -41,6 +41,34 @@ const config: Config = {
               foreground: "#ffffff"
             }
           }
+        },
+        dark: {
+          colors: {
+            background: "#0f172a",
+            foreground: "#e5eef8",
+            content1: "#111827",
+            content2: "#172033",
+            content3: "#243045",
+            content4: "#334155",
+            primary: {
+              50: "#09251c",
+              100: "#0b3b2c",
+              200: "#0d513d",
+              300: "#0f6a4e",
+              400: "#148864",
+              500: "#23b887",
+              600: "#49cca0",
+              700: "#7dddbb",
+              800: "#b7eed8",
+              900: "#e8fbf4",
+              DEFAULT: "#23b887",
+              foreground: "#061912"
+            },
+            secondary: {
+              DEFAULT: "#8ea4ff",
+              foreground: "#0b1020"
+            }
+          }
         }
       }
     }),

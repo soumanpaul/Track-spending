@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: dark;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.light {
   color-scheme: light;
 }
 
@@ -17,10 +25,55 @@ body {
     linear-gradient(180deg, #f7f8fb 0%, #eef2f7 100%);
 }
 
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(35, 184, 135, 0.18), transparent 34rem),
+    linear-gradient(180deg, #0f172a 0%, #111827 54%, #0b1120 100%);
+}
+
 * {
   box-sizing: border-box;
 }
 
 .recharts-tooltip-wrapper {
   outline: none;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-200\/70 {
+  border-color: rgba(71, 85, 105, 0.72);
+}
+
+.dark .border-slate-300 {
+  border-color: rgb(71, 85, 105);
+}
+
+.dark .bg-white {
+  background-color: rgb(17, 24, 39);
+}
+
+.dark .bg-slate-50 {
+  background-color: rgb(15, 23, 42);
+}
+
+.dark .bg-slate-100 {
+  background-color: rgb(30, 41, 59);
+}
+
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-slate-700 {
+  color: rgb(241, 245, 249);
+}
+
+.dark .text-slate-600 {
+  color: rgb(203, 213, 225);
+}
+
+.dark .text-slate-500 {
+  color: rgb(148, 163, 184);
+}
+
+.dark .text-slate-400 {
+  color: rgb(125, 139, 158);
 }
