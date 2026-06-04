@@ -31,6 +31,7 @@ import {
 } from "@nextui-org/react";
 import {
   Banknote,
+  Building2,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -44,8 +45,10 @@ import {
   Filter,
   Gauge,
   History,
+  Landmark,
   Link2,
   Lightbulb,
+  LockKeyhole,
   LayoutGrid,
   Layers3,
   ListFilter,
@@ -66,6 +69,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Unlink,
   X,
   WalletCards,
   Zap,
@@ -98,6 +102,28 @@ type SmartView = "All" | "Needs review" | "Recurring bills" | "Large purchases" 
 type ExportTemplate = "Tax Report" | "Monthly Summary" | "Category Analysis";
 type CloudProvider = "Google Sheets" | "Dropbox" | "OneDrive" | "Email";
 type BackupFrequency = "Off" | "Weekly" | "Monthly" | "Quarterly";
+type BankProvider = "Chase" | "Bank of America" | "Wells Fargo" | "Capital One" | "Citi";
+type BankAccountType = "Checking" | "Savings" | "Credit card";
+type BankAccount = {
+  id: string;
+  provider: BankProvider;
+  nickname: string;
+  type: BankAccountType;
+  last4: string;
+  balance: number;
+  lastSync: string;
+  autoImport: boolean;
+  status: "Connected" | "Needs review";
+};
+type BankTransaction = {
+  id: string;
+  accountId: string;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  date: string;
+  note: string;
+};
 type ExportHistoryEntry = {
   id: string;
   action: string;
@@ -197,6 +223,7 @@ const initialExportHistory: ExportHistoryEntry[] = [
 type StoredData = {
   expenses: Expense[];
   budgets: Budget;
+  bankAccounts?: BankAccount[];
 };
 
 const emptyForm = {
@@ -208,6 +235,17 @@ const emptyForm = {
   note: "",
   recurring: false,
 };
+
+const emptyBankForm = {
+  provider: "Chase" as BankProvider,
+  nickname: "Everyday checking",
+  type: "Checking" as BankAccountType,
+  last4: "2841",
+  autoImport: true,
+};
+
+const bankProviders: BankProvider[] = ["Chase", "Bank of America", "Wells Fargo", "Capital One", "Citi"];
+const bankAccountTypes: BankAccountType[] = ["Checking", "Savings", "Credit card"];
 
 export function ExpenseTracker() {
   const { theme, toggleTheme } = useThemeMode();
@@ -240,6 +278,11 @@ export function ExpenseTracker() {
   const [isQrVisible, setIsQrVisible] = useState(false);
   const [isCloudProcessing, setIsCloudProcessing] = useState(false);
   const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>(initialExportHistory);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankForm, setBankForm] = useState(emptyBankForm);
+  const [isBankLinkOpen, setIsBankLinkOpen] = useState(false);
+  const [isBankSyncing, setIsBankSyncing] = useState(false);
+  const [selectedBankTransactionIds, setSelectedBankTransactionIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -249,6 +292,7 @@ export function ExpenseTracker() {
       const parsed = JSON.parse(saved) as StoredData;
       setExpenses((parsed.expenses ?? seedExpenses).map(normalizeExpense));
       setBudgets(normalizeBudgets(parsed.budgets));
+      setBankAccounts((parsed.bankAccounts ?? []).map(normalizeBankAccount));
     } catch {
       setStorageError("Saved data could not be loaded, so the demo data is being shown.");
       try {
@@ -265,12 +309,12 @@ export function ExpenseTracker() {
     if (!isReady) return;
 
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ expenses, budgets }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ expenses, budgets, bankAccounts }));
       setStorageError("");
     } catch {
       setStorageError("Changes are visible now but could not be saved to localStorage.");
     }
-  }, [budgets, expenses, isReady]);
+  }, [bankAccounts, budgets, expenses, isReady]);
 
   const filteredExpenses = useMemo(() => {
     const min = amountMin ? Number(amountMin) : null;
@@ -357,6 +401,14 @@ export function ExpenseTracker() {
   const filteredAverage = filteredExpenses.length > 0 ? filteredTotal / filteredExpenses.length : 0;
   const cloudSyncTotal = expenses.filter((expense) => isInDateRange(expense.date, currentMonthStart, currentMonthEnd)).reduce((sum, expense) => sum + expense.amount, 0);
   const cloudSyncSummary = `${expenses.length} records ready, ${formatCurrency(cloudSyncTotal)} this month`;
+  const pendingBankTransactions = useMemo(() => {
+    return bankAccounts.flatMap((account) => createMockBankTransactions(account)).filter((transaction) => {
+      return !expenses.some((expense) => expense.bankAccountId === transaction.accountId && expense.note?.includes(transaction.id));
+    });
+  }, [bankAccounts, expenses]);
+  const selectedBankTransactions = pendingBankTransactions.filter((transaction) => selectedBankTransactionIds.has(transaction.id));
+  const linkedBalance = bankAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const autoImportCount = bankAccounts.filter((account) => account.autoImport).length;
 
   const groupedByCategory = useMemo(() => {
     return categories
@@ -461,6 +513,8 @@ export function ExpenseTracker() {
     setDisplayMode("table");
     setAmountMin("");
     setAmountMax("");
+    setBankAccounts([]);
+    setSelectedBankTransactionIds(new Set());
     cancelEdit();
     setFeedback("Demo data restored.");
   }
@@ -483,6 +537,98 @@ export function ExpenseTracker() {
 
     setIsCloudProcessing(false);
     setFeedback(getCloudFeedback(action, activeTemplate, cloudProvider));
+  }
+
+  function linkBankAccount() {
+    const account: BankAccount = {
+      id: crypto.randomUUID(),
+      provider: bankForm.provider,
+      nickname: bankForm.nickname.trim() || `${bankForm.provider} ${bankForm.type}`,
+      type: bankForm.type,
+      last4: bankForm.last4.replace(/\D/g, "").slice(-4).padStart(4, "0"),
+      balance: getMockBalance(bankForm.provider, bankForm.type),
+      lastSync: "Just now",
+      autoImport: bankForm.autoImport,
+      status: "Connected",
+    };
+
+    setBankAccounts((current) => [account, ...current]);
+    setBankForm(emptyBankForm);
+    setIsBankLinkOpen(false);
+    setFeedback(`${account.nickname} linked for bank transaction imports.`);
+  }
+
+  async function syncBankAccounts() {
+    if (bankAccounts.length === 0) {
+      setIsBankLinkOpen(true);
+      setFeedback("Link a bank account before syncing.");
+      return;
+    }
+
+    setIsBankSyncing(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+    setBankAccounts((current) =>
+      current.map((account, index) => ({
+        ...account,
+        balance: account.balance + (index % 2 === 0 ? -18.75 : 42.2),
+        lastSync: "Just now",
+        status: index === 0 ? "Connected" : account.status,
+      })),
+    );
+    const autoImportAccountIds = new Set(bankAccounts.filter((account) => account.autoImport).map((account) => account.id));
+    setSelectedBankTransactionIds(new Set(pendingBankTransactions.filter((transaction) => autoImportAccountIds.has(transaction.accountId)).map((transaction) => transaction.id)));
+    setIsBankSyncing(false);
+    setFeedback(`${pendingBankTransactions.length} bank transaction${pendingBankTransactions.length === 1 ? "" : "s"} ready to review.`);
+  }
+
+  function toggleBankTransaction(id: string, isSelected: boolean) {
+    setSelectedBankTransactionIds((current) => {
+      const next = new Set(current);
+      if (isSelected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  function importSelectedBankTransactions() {
+    if (selectedBankTransactions.length === 0) {
+      setFeedback("Select at least one bank transaction to import.");
+      return;
+    }
+
+    const importedExpenses: Expense[] = selectedBankTransactions.map((transaction) => ({
+      id: crypto.randomUUID(),
+      title: transaction.title,
+      amount: transaction.amount,
+      category: transaction.category,
+      date: transaction.date,
+      bankAccountId: transaction.accountId,
+      note: `${transaction.note} · Bank import ${transaction.id}`,
+      paymentMethod: "Bank",
+      recurring: false,
+    }));
+
+    setExpenses((current) => [...importedExpenses, ...current]);
+    setSelectedBankTransactionIds(new Set());
+    setFeedback(`${importedExpenses.length} bank transaction${importedExpenses.length === 1 ? "" : "s"} imported.`);
+  }
+
+  function toggleBankAutoImport(id: string, autoImport: boolean) {
+    setBankAccounts((current) => current.map((account) => (account.id === id ? { ...account, autoImport } : account)));
+  }
+
+  function unlinkBankAccount(id: string) {
+    const account = bankAccounts.find((item) => item.id === id);
+    setBankAccounts((current) => current.filter((item) => item.id !== id));
+    setSelectedBankTransactionIds((current) => {
+      const next = new Set(current);
+      pendingBankTransactions.filter((transaction) => transaction.accountId === id).forEach((transaction) => next.delete(transaction.id));
+      return next;
+    });
+    setFeedback(`${account?.nickname ?? "Bank account"} unlinked.`);
   }
 
   return (
@@ -511,6 +657,9 @@ export function ExpenseTracker() {
             </Button>
             <Button color="primary" startContent={<CloudUpload size={18} />} variant="flat" onPress={openCloudExport}>
               Cloud Export
+            </Button>
+            <Button startContent={<Landmark size={18} />} variant="bordered" onPress={() => setIsBankLinkOpen(true)}>
+              Link Bank
             </Button>
             <Button startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
               Reset
@@ -736,11 +885,170 @@ export function ExpenseTracker() {
           </ModalContent>
         </Modal>
 
+        <Modal isOpen={isBankLinkOpen} size="2xl" onOpenChange={setIsBankLinkOpen}>
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Landmark size={21} />
+                    Link bank account
+                  </div>
+                  <p className="text-sm font-normal text-slate-500">
+                    Add a mock bank connection for transaction review, balance snapshots, and local imports.
+                  </p>
+                </ModalHeader>
+                <ModalBody className="gap-4">
+                  <div className="rounded-lg border border-primary-200 bg-primary-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-lg bg-white p-2 text-primary"><LockKeyhole size={18} /></span>
+                      <div>
+                        <p className="text-sm font-medium text-primary-700">Demo-only secure link</p>
+                        <p className="mt-1 text-sm leading-5 text-primary-700/80">
+                          No credentials are collected. This creates a local account profile and mock transactions.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Select
+                      label="Institution"
+                      selectedKeys={[bankForm.provider]}
+                      onSelectionChange={(keys) => setBankForm((current) => ({ ...current, provider: Array.from(keys)[0] as BankProvider }))}
+                    >
+                      {bankProviders.map((provider) => (
+                        <SelectItem key={provider}>{provider}</SelectItem>
+                      ))}
+                    </Select>
+                    <Select
+                      label="Account type"
+                      selectedKeys={[bankForm.type]}
+                      onSelectionChange={(keys) => setBankForm((current) => ({ ...current, type: Array.from(keys)[0] as BankAccountType }))}
+                    >
+                      {bankAccountTypes.map((type) => (
+                        <SelectItem key={type}>{type}</SelectItem>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                    <Input
+                      label="Account nickname"
+                      placeholder="Everyday checking"
+                      value={bankForm.nickname}
+                      onValueChange={(nickname) => setBankForm((current) => ({ ...current, nickname }))}
+                    />
+                    <Input
+                      label="Last 4"
+                      maxLength={4}
+                      placeholder="2841"
+                      value={bankForm.last4}
+                      onValueChange={(last4) => setBankForm((current) => ({ ...current, last4: last4.replace(/\D/g, "").slice(0, 4) }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Auto-select new imports</p>
+                      <p className="text-xs text-slate-500">New synced transactions are preselected for review.</p>
+                    </div>
+                    <Switch isSelected={bankForm.autoImport} onValueChange={(autoImport) => setBankForm((current) => ({ ...current, autoImport }))} />
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="flat" onPress={onClose}>
+                    Cancel
+                  </Button>
+                  <Button color="primary" startContent={<Link2 size={18} />} onPress={linkBankAccount}>
+                    Link account
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={<TrendingDown size={20} />} label="Spent in range" value={formatCurrency(totals.total)} detail={`${totals.transactionCount} transactions`} />
           <MetricCard icon={<Banknote size={20} />} label="Budget left" value={formatCurrency(totals.remaining)} detail={`${Math.round((totals.total / totals.budgetTotal) * 100)}% of total budget used`} tone={totals.remaining < 0 ? "danger" : "success"} />
           <MetricCard icon={<CalendarDays size={20} />} label="Daily average" value={formatCurrency(totals.dailyAverage)} detail={rangeLabel} />
           <MetricCard icon={<CreditCard size={20} />} label="Recurring" value={formatCurrency(totals.recurring)} detail="Scheduled monthly expenses" />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[minmax(320px,0.9fr)_1.1fr]">
+          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <CardHeader className="flex items-start justify-between gap-3 px-5 pt-5">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
+                  <Landmark size={17} />
+                  Linked banks
+                </div>
+                <h2 className="text-lg font-semibold text-slate-950">{bankAccounts.length} connected account{bankAccounts.length === 1 ? "" : "s"}</h2>
+                <p className="text-sm text-slate-500">{formatCurrency(linkedBalance)} combined available balance.</p>
+              </div>
+              <Button isIconOnly aria-label="Link bank account" color="primary" size="sm" variant="flat" onPress={() => setIsBankLinkOpen(true)}>
+                <Plus size={17} />
+              </Button>
+            </CardHeader>
+            <CardBody className="gap-3 px-5 pb-5">
+              {bankAccounts.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+                  <div className="mb-3 rounded-lg bg-white p-2 text-slate-600 w-fit">
+                    <Building2 size={20} />
+                  </div>
+                  <p className="text-sm font-medium text-slate-900">No bank accounts linked</p>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">Connect a mock account to preview balances and import bank transactions.</p>
+                  <Button className="mt-4" color="primary" size="sm" startContent={<Link2 size={16} />} onPress={() => setIsBankLinkOpen(true)}>
+                    Link first account
+                  </Button>
+                </div>
+              ) : (
+                bankAccounts.map((account) => (
+                  <BankAccountCard
+                    key={account.id}
+                    account={account}
+                    onToggleAutoImport={toggleBankAutoImport}
+                    onUnlink={unlinkBankAccount}
+                  />
+                ))
+              )}
+            </CardBody>
+          </Card>
+
+          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <CardHeader className="flex flex-col gap-3 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Bank transaction review</h2>
+                <p className="text-sm text-slate-500">
+                  {pendingBankTransactions.length} pending transaction{pendingBankTransactions.length === 1 ? "" : "s"} from connected accounts. {autoImportCount} account{autoImportCount === 1 ? "" : "s"} preselect imports.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button isLoading={isBankSyncing} startContent={isBankSyncing ? undefined : <RefreshCcw size={17} />} variant="flat" onPress={syncBankAccounts}>
+                  Sync
+                </Button>
+                <Button color="primary" startContent={<CheckCircle2 size={17} />} onPress={importSelectedBankTransactions}>
+                  Import {selectedBankTransactions.length}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardBody className="gap-3 px-5 pb-5">
+              {pendingBankTransactions.length === 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-center">
+                  <p className="text-sm font-medium text-slate-900">No bank transactions waiting.</p>
+                  <p className="mt-1 text-sm text-slate-500">Sync linked accounts to generate review-ready imports.</p>
+                </div>
+              ) : (
+                pendingBankTransactions.map((transaction) => (
+                  <BankTransactionRow
+                    key={transaction.id}
+                    account={bankAccounts.find((account) => account.id === transaction.accountId)}
+                    isSelected={selectedBankTransactionIds.has(transaction.id)}
+                    transaction={transaction}
+                    onToggle={toggleBankTransaction}
+                  />
+                ))
+              )}
+            </CardBody>
+          </Card>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(300px,0.9fr)_1.4fr_1fr]">
@@ -1073,6 +1381,83 @@ function MiniStat({ label, value, tone = "default" }: { label: string; value: st
   );
 }
 
+function BankAccountCard({
+  account,
+  onToggleAutoImport,
+  onUnlink,
+}: {
+  account: BankAccount;
+  onToggleAutoImport: (id: string, autoImport: boolean) => void;
+  onUnlink: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="rounded-lg bg-slate-100 p-2 text-slate-700"><Landmark size={18} /></span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-950">{account.nickname}</p>
+            <p className="text-xs text-slate-500">{account.provider} · {account.type} · **** {account.last4}</p>
+          </div>
+        </div>
+        <CloudStatusPill label={account.status} tone={account.status === "Connected" ? "success" : "warning"} />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <MiniStat label="Balance" value={formatCurrency(account.balance)} tone={account.balance < 0 ? "danger" : "default"} />
+        <MiniStat label="Last sync" value={account.lastSync} />
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+        <div>
+          <p className="text-sm font-medium text-slate-900">Auto import</p>
+          <p className="text-xs text-slate-500">Preselect synced items.</p>
+        </div>
+        <Switch size="sm" isSelected={account.autoImport} onValueChange={(autoImport) => onToggleAutoImport(account.id, autoImport)} />
+      </div>
+      <Button className="mt-3" color="danger" size="sm" startContent={<Unlink size={16} />} variant="light" onPress={() => onUnlink(account.id)}>
+        Unlink
+      </Button>
+    </div>
+  );
+}
+
+function BankTransactionRow({
+  account,
+  isSelected,
+  transaction,
+  onToggle,
+}: {
+  account?: BankAccount;
+  isSelected: boolean;
+  transaction: BankTransaction;
+  onToggle: (id: string, isSelected: boolean) => void;
+}) {
+  return (
+    <div className={`rounded-lg border p-4 transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Switch
+            aria-label={`Select ${transaction.title}`}
+            className="mt-1"
+            size="sm"
+            isSelected={isSelected}
+            onValueChange={(selected) => onToggle(transaction.id, selected)}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-950">{transaction.title}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {transaction.date} · {account?.nickname ?? "Linked bank"} · {transaction.note}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-base font-semibold text-slate-950">{formatCurrency(transaction.amount)}</p>
+          <Chip size="sm" variant="flat" style={{ color: categoryColors[transaction.category] }}>{transaction.category}</Chip>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CoachActionCard({ action }: { action: CoachAction }) {
   const priorityColor = action.priority === "High" ? "danger" : action.priority === "Medium" ? "warning" : "primary";
 
@@ -1362,6 +1747,56 @@ function getCloudFeedback(action: "sync" | "email" | "backup" | "share", templat
   return `${template} synced to ${provider}.`;
 }
 
+function createMockBankTransactions(account: BankAccount): BankTransaction[] {
+  const providerKey = account.provider.toLowerCase().replaceAll(" ", "-");
+  const accountSeed = Number(account.last4) || 1000;
+  const offset = accountSeed % 5;
+
+  return [
+    {
+      id: `${account.id}-tx-${providerKey}-grocery`,
+      accountId: account.id,
+      title: "Neighborhood Market",
+      amount: 64 + offset * 3.45,
+      category: "Food",
+      date: "2026-05-22",
+      note: `${account.provider} card purchase`,
+    },
+    {
+      id: `${account.id}-tx-${providerKey}-ride`,
+      accountId: account.id,
+      title: "City rideshare",
+      amount: 18.5 + offset,
+      category: "Transportation",
+      date: "2026-05-24",
+      note: "Pending bank import",
+    },
+    {
+      id: `${account.id}-tx-${providerKey}-internet`,
+      accountId: account.id,
+      title: "Fiber internet",
+      amount: 72,
+      category: "Bills",
+      date: "2026-05-26",
+      note: "Recurring candidate",
+    },
+  ];
+}
+
+function getMockBalance(provider: BankProvider, type: BankAccountType) {
+  const providerBalances: Record<BankProvider, number> = {
+    Chase: 4280,
+    "Bank of America": 3675,
+    "Wells Fargo": 2910,
+    "Capital One": 1845,
+    Citi: 2380,
+  };
+
+  if (type === "Credit card") return -640;
+  if (type === "Savings") return providerBalances[provider] + 5200;
+  return providerBalances[provider];
+}
+
 function sortExpenses(a: Expense, b: Expense, sortKey: SortKey, allExpenses: Expense[], budgets: Budget, dateStart: string, dateEnd: string) {
   if (sortKey === "date-asc") return a.date.localeCompare(b.date) || b.amount - a.amount;
   if (sortKey === "amount-desc") return b.amount - a.amount || b.date.localeCompare(a.date);
@@ -1617,9 +2052,27 @@ function validateExpenseForm(form: typeof emptyForm): FormErrors {
 function normalizeExpense(expense: Expense): Expense {
   return {
     ...expense,
+    bankAccountId: expense.bankAccountId,
     category: normalizeCategory(expense.category),
     paymentMethod: paymentMethods.includes(expense.paymentMethod) ? expense.paymentMethod : "Card",
     recurring: Boolean(expense.recurring),
+  };
+}
+
+function normalizeBankAccount(account: BankAccount): BankAccount {
+  const provider = bankProviders.includes(account.provider) ? account.provider : "Chase";
+  const type = bankAccountTypes.includes(account.type) ? account.type : "Checking";
+
+  return {
+    id: account.id || crypto.randomUUID(),
+    provider,
+    nickname: account.nickname || `${provider} ${type}`,
+    type,
+    last4: String(account.last4 ?? "0000").replace(/\D/g, "").slice(-4).padStart(4, "0"),
+    balance: Number(account.balance) || getMockBalance(provider, type),
+    lastSync: account.lastSync || "Not synced",
+    autoImport: Boolean(account.autoImport),
+    status: account.status === "Needs review" ? "Needs review" : "Connected",
   };
 }
 

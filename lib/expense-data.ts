@@ -12,6 +12,7 @@ export type Expense = {
   amount: number;
   category: ExpenseCategory;
   date: string;
+  bankAccountId?: string;
   note?: string;
   recurring: boolean;
   paymentMethod: "Card" | "Cash" | "UPI" | "Bank";
