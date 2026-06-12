@@ -632,43 +632,67 @@ export function ExpenseTracker() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
+    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <WalletCards size={18} />
-              Expense Desk
+        <header className="glass-hero p-5 sm:p-7 lg:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <div className="glass-control inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white">
+                <WalletCards size={18} />
+                Expense Desk
+              </div>
+              <div className="space-y-3">
+                <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-white sm:text-5xl">
+                  Liquid-glass spending control.
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-white/78 sm:text-base">
+                  Track purchases, budgets, bank imports, and exports inside a luminous finance workspace built for fast daily review.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <MiniStat label="Range spend" value={formatCurrency(totals.total)} />
+                <MiniStat label="Budget left" value={formatCurrency(totals.remaining)} tone={totals.remaining < 0 ? "danger" : "success"} />
+                <MiniStat label="Daily avg" value={formatCurrency(totals.dailyAverage)} />
+              </div>
             </div>
-            <h1 className="text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
-              Track spending with budgets that stay visible.
-            </h1>
-            <p className="max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Add purchases, monitor category limits, search transactions, and export a clean CSV from one focused dashboard.
-            </p>
+            <div className="glass-panel-strong w-full max-w-sm p-5 text-white lg:text-right">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-white/60 bg-white/20 shadow-2xl shadow-white/20 backdrop-blur-2xl lg:ml-auto lg:mr-0">
+                <Sparkles size={28} />
+              </div>
+              <p className="text-sm font-medium uppercase tracking-normal text-white/62">Money coach</p>
+              <h2 className="mt-1 text-2xl font-semibold text-white">{moneyCoach.score}/100</h2>
+              <p className="mt-2 text-sm leading-6 text-white/72">{moneyCoach.status}</p>
+              <Progress
+                aria-label="Hero money health score"
+                className="mt-4"
+                color={moneyCoach.score >= 75 ? "primary" : moneyCoach.score >= 55 ? "warning" : "danger"}
+                value={moneyCoach.score}
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap gap-2">
             <Button
+              className="glass-control text-white"
               startContent={theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               variant="bordered"
               onPress={toggleTheme}
             >
               {theme === "dark" ? "Light mode" : "Dark mode"}
             </Button>
-            <Button color="primary" startContent={<CloudUpload size={18} />} variant="flat" onPress={openCloudExport}>
+            <Button className="bg-white text-slate-950 shadow-2xl shadow-white/20" startContent={<CloudUpload size={18} />} onPress={openCloudExport}>
               Cloud Export
             </Button>
-            <Button startContent={<Landmark size={18} />} variant="bordered" onPress={() => setIsBankLinkOpen(true)}>
+            <Button className="glass-control text-white" startContent={<Landmark size={18} />} variant="bordered" onPress={() => setIsBankLinkOpen(true)}>
               Link Bank
             </Button>
-            <Button startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
+            <Button className="glass-control text-white" startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
               Reset
             </Button>
           </div>
         </header>
 
         {!isReady ? (
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          <div className="glass-panel rounded-lg px-4 py-3 text-sm text-slate-600">
             Loading saved expenses...
           </div>
         ) : null}
@@ -680,13 +704,13 @@ export function ExpenseTracker() {
         ) : null}
 
         {feedback ? (
-          <div className="rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+          <div className="glass-panel rounded-lg px-4 py-3 text-sm text-primary-700">
             {feedback}
           </div>
         ) : null}
 
         <Modal isOpen={isCloudExportOpen} scrollBehavior="inside" size="5xl" onOpenChange={setIsCloudExportOpen}>
-          <ModalContent>
+          <ModalContent className="glass-panel-strong">
             {(onClose) => (
               <>
                 <ModalHeader className="flex flex-col gap-2">
@@ -704,7 +728,7 @@ export function ExpenseTracker() {
                 <ModalBody className="gap-5">
                   <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
                     <div className="space-y-4">
-                      <div className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-950 to-primary p-4 text-white">
+                      <div className="rounded-lg border border-white/20 bg-gradient-to-r from-slate-950/88 via-cyan-950/82 to-violet-900/82 p-4 text-white shadow-2xl shadow-cyan-950/20 backdrop-blur-2xl">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-sm text-white/70">Workspace sync</p>
@@ -745,7 +769,7 @@ export function ExpenseTracker() {
                         </Tab>
                         <Tab key="schedule" title="Automations">
                           <div className="grid gap-3 pt-3 md:grid-cols-[1fr_1fr]">
-                            <div className="rounded-lg border border-slate-200 p-4">
+                            <div className="glass-panel rounded-lg p-4">
                               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
                                 <Clock size={17} />
                                 Recurring backups
@@ -763,7 +787,7 @@ export function ExpenseTracker() {
                                 Scheduled exports run in the background and write the selected template to {cloudProvider}.
                               </p>
                             </div>
-                            <div className="rounded-lg border border-slate-200 p-4">
+                            <div className="glass-panel rounded-lg p-4">
                               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
                                 <ShieldCheck size={17} />
                                 Sync safeguards
@@ -779,7 +803,7 @@ export function ExpenseTracker() {
                       </Tabs>
 
                       <div className="grid gap-3 md:grid-cols-2">
-                        <div className="rounded-lg border border-slate-200 p-4">
+                        <div className="glass-panel rounded-lg p-4">
                           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
                             <Mail size={17} />
                             Email export
@@ -803,12 +827,12 @@ export function ExpenseTracker() {
                           </Button>
                         </div>
 
-                        <div className="rounded-lg border border-slate-200 p-4">
+                        <div className="glass-panel rounded-lg p-4">
                           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
                             <Share2 size={17} />
                             Share workspace snapshot
                           </div>
-                          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                          <div className="glass-control rounded-lg px-3 py-2 text-sm text-slate-600">
                             <p className="truncate">{shareLink}</p>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -828,7 +852,7 @@ export function ExpenseTracker() {
                     </div>
 
                     <div className="space-y-4">
-                      <div className="rounded-lg border border-slate-200 p-4">
+                      <div className="glass-panel rounded-lg p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-slate-900">Cloud destination</p>
@@ -858,7 +882,7 @@ export function ExpenseTracker() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 p-4">
+                      <div className="glass-panel rounded-lg p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-900">
                           <History size={17} />
                           Export history
@@ -886,7 +910,7 @@ export function ExpenseTracker() {
         </Modal>
 
         <Modal isOpen={isBankLinkOpen} size="2xl" onOpenChange={setIsBankLinkOpen}>
-          <ModalContent>
+          <ModalContent className="glass-panel-strong">
             {(onClose) => (
               <>
                 <ModalHeader className="flex flex-col gap-2">
@@ -899,9 +923,9 @@ export function ExpenseTracker() {
                   </p>
                 </ModalHeader>
                 <ModalBody className="gap-4">
-                  <div className="rounded-lg border border-primary-200 bg-primary-50 p-4">
+                  <div className="glass-panel rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      <span className="rounded-lg bg-white p-2 text-primary"><LockKeyhole size={18} /></span>
+                      <span className="glass-control rounded-lg p-2 text-primary"><LockKeyhole size={18} /></span>
                       <div>
                         <p className="text-sm font-medium text-primary-700">Demo-only secure link</p>
                         <p className="mt-1 text-sm leading-5 text-primary-700/80">
@@ -945,7 +969,7 @@ export function ExpenseTracker() {
                       onValueChange={(last4) => setBankForm((current) => ({ ...current, last4: last4.replace(/\D/g, "").slice(0, 4) }))}
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                  <div className="glass-control flex items-center justify-between rounded-lg px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-slate-900">Auto-select new imports</p>
                       <p className="text-xs text-slate-500">New synced transactions are preselected for review.</p>
@@ -974,7 +998,7 @@ export function ExpenseTracker() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(320px,0.9fr)_1.1fr]">
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardHeader className="flex items-start justify-between gap-3 px-5 pt-5">
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
@@ -990,8 +1014,8 @@ export function ExpenseTracker() {
             </CardHeader>
             <CardBody className="gap-3 px-5 pb-5">
               {bankAccounts.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-                  <div className="mb-3 rounded-lg bg-white p-2 text-slate-600 w-fit">
+                <div className="glass-panel rounded-lg border-dashed p-5">
+                  <div className="glass-control mb-3 rounded-lg p-2 text-slate-600 w-fit">
                     <Building2 size={20} />
                   </div>
                   <p className="text-sm font-medium text-slate-900">No bank accounts linked</p>
@@ -1013,7 +1037,7 @@ export function ExpenseTracker() {
             </CardBody>
           </Card>
 
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardHeader className="flex flex-col gap-3 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">Bank transaction review</h2>
@@ -1032,7 +1056,7 @@ export function ExpenseTracker() {
             </CardHeader>
             <CardBody className="gap-3 px-5 pb-5">
               {pendingBankTransactions.length === 0 ? (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-center">
+                <div className="glass-panel rounded-lg p-5 text-center">
                   <p className="text-sm font-medium text-slate-900">No bank transactions waiting.</p>
                   <p className="mt-1 text-sm text-slate-500">Sync linked accounts to generate review-ready imports.</p>
                 </div>
@@ -1052,7 +1076,7 @@ export function ExpenseTracker() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(300px,0.9fr)_1.4fr_1fr]">
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardBody className="gap-4 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1063,7 +1087,7 @@ export function ExpenseTracker() {
                   <h2 className="text-xl font-semibold text-slate-950">{moneyCoach.status}</h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500">{moneyCoach.summary}</p>
                 </div>
-                <div className={`rounded-lg px-3 py-2 text-right ${moneyCoach.score >= 75 ? "bg-primary-50 text-primary-700" : moneyCoach.score >= 55 ? "bg-warning-50 text-warning-700" : "bg-danger-50 text-danger-700"}`}>
+                <div className={`glass-control rounded-lg px-3 py-2 text-right ${moneyCoach.score >= 75 ? "text-primary-700" : moneyCoach.score >= 55 ? "text-warning-700" : "text-danger-700"}`}>
                   <p className="text-xs font-medium uppercase tracking-normal">Score</p>
                   <p className="text-2xl font-semibold">{moneyCoach.score}</p>
                 </div>
@@ -1081,7 +1105,7 @@ export function ExpenseTracker() {
             </CardBody>
           </Card>
 
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardHeader className="flex items-center justify-between gap-3 px-5 pt-5">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">Recommended actions</h2>
@@ -1098,7 +1122,7 @@ export function ExpenseTracker() {
             </CardBody>
           </Card>
 
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardHeader className="flex-col items-start gap-1 px-5 pt-5">
               <h2 className="text-lg font-semibold text-slate-950">Spending rhythm</h2>
               <p className="text-sm text-slate-500">See where this month is drifting before it becomes expensive.</p>
@@ -1118,7 +1142,7 @@ export function ExpenseTracker() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[minmax(340px,420px)_1fr]">
-          <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+          <Card radius="lg" shadow="none" className="glass-panel">
             <CardHeader className="flex gap-3 px-5 pt-5">
               <div className="rounded-lg bg-primary/10 p-2 text-primary">
                 <Plus size={20} />
@@ -1167,7 +1191,7 @@ export function ExpenseTracker() {
                 </Select>
               </div>
               <Textarea label="Note" minRows={2} placeholder="Optional details" value={form.note} onValueChange={(note) => setForm((current) => ({ ...current, note }))} />
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+              <div className="glass-control flex items-center justify-between rounded-lg px-3 py-2">
                 <div>
                   <p className="text-sm font-medium text-slate-900">Recurring</p>
                   <p className="text-xs text-slate-500">Mark repeating monthly payments.</p>
@@ -1188,14 +1212,14 @@ export function ExpenseTracker() {
           </Card>
 
           <div className="grid gap-6">
-            <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <Card radius="lg" shadow="none" className="glass-panel">
               <CardHeader className="flex-col items-start gap-1 px-5 pt-5">
                 <h2 className="text-lg font-semibold text-slate-950">Budget health</h2>
                 <p className="text-sm text-slate-500">Adjust category budgets and watch usage across the selected date range.</p>
               </CardHeader>
               <CardBody className="grid gap-4 px-5 pb-5 lg:grid-cols-2">
                 {categoryTotals.map(({ category, spent, budget, percent }) => (
-                  <div key={category} className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                  <div key={category} className="glass-panel space-y-2 rounded-lg p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: categoryColors[category] }} />
@@ -1219,7 +1243,7 @@ export function ExpenseTracker() {
               </CardBody>
             </Card>
 
-            <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+            <Card radius="lg" shadow="none" className="glass-panel">
               <CardHeader className="flex flex-col gap-4 px-5 pt-5">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-950">Transactions</h2>
@@ -1334,7 +1358,7 @@ export function ExpenseTracker() {
 
         <section className="grid gap-4 lg:grid-cols-5">
           {topCategories.map((item) => (
-            <Card key={item.category} radius="sm" shadow="sm" className="border border-slate-200/70">
+            <Card key={item.category} radius="lg" shadow="none" className="glass-panel">
               <CardBody className="gap-3">
                 <span className="h-2 w-full rounded-full" style={{ backgroundColor: categoryColors[item.category] }} />
                 <div>
@@ -1355,10 +1379,10 @@ function MetricCard({ icon, label, value, detail, tone = "default" }: { icon: Re
   const toneClass = tone === "danger" ? "text-danger" : tone === "success" ? "text-primary" : "text-slate-950";
 
   return (
-    <Card radius="sm" shadow="sm" className="border border-slate-200/70">
+    <Card radius="lg" shadow="none" className="glass-panel">
       <CardBody className="gap-3 p-5">
         <div className="flex items-center justify-between">
-          <span className="rounded-lg bg-slate-100 p-2 text-slate-600">{icon}</span>
+          <span className="glass-control rounded-lg p-2 text-slate-600">{icon}</span>
           <span className="text-xs font-medium uppercase tracking-normal text-slate-400">{label}</span>
         </div>
         <div>
@@ -1374,7 +1398,7 @@ function MiniStat({ label, value, tone = "default" }: { label: string; value: st
   const toneClass = tone === "success" ? "text-primary" : tone === "danger" ? "text-danger" : "text-slate-950";
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="glass-control rounded-lg px-3 py-2">
       <p className="text-xs text-slate-500">{label}</p>
       <p className={`truncate text-base font-semibold ${toneClass}`}>{value}</p>
     </div>
@@ -1391,10 +1415,10 @@ function BankAccountCard({
   onUnlink: (id: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="glass-panel rounded-lg p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="rounded-lg bg-slate-100 p-2 text-slate-700"><Landmark size={18} /></span>
+          <span className="glass-control rounded-lg p-2 text-slate-700"><Landmark size={18} /></span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-950">{account.nickname}</p>
             <p className="text-xs text-slate-500">{account.provider} · {account.type} · **** {account.last4}</p>
@@ -1406,7 +1430,7 @@ function BankAccountCard({
         <MiniStat label="Balance" value={formatCurrency(account.balance)} tone={account.balance < 0 ? "danger" : "default"} />
         <MiniStat label="Last sync" value={account.lastSync} />
       </div>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+      <div className="glass-control mt-4 flex items-center justify-between gap-3 rounded-lg px-3 py-2">
         <div>
           <p className="text-sm font-medium text-slate-900">Auto import</p>
           <p className="text-xs text-slate-500">Preselect synced items.</p>
@@ -1432,7 +1456,7 @@ function BankTransactionRow({
   onToggle: (id: string, isSelected: boolean) => void;
 }) {
   return (
-    <div className={`rounded-lg border p-4 transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white"}`}>
+    <div className={`glass-panel rounded-lg p-4 transition ${isSelected ? "ring-1 ring-primary" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <Switch
@@ -1462,10 +1486,10 @@ function CoachActionCard({ action }: { action: CoachAction }) {
   const priorityColor = action.priority === "High" ? "danger" : action.priority === "Medium" ? "warning" : "primary";
 
   return (
-    <div className="flex min-h-[164px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-4">
+    <div className="glass-panel flex min-h-[164px] flex-col justify-between rounded-lg p-4">
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{action.icon}</span>
+          <span className="glass-control rounded-lg p-2 text-slate-700">{action.icon}</span>
           <Chip color={priorityColor} size="sm" variant="flat">{action.priority}</Chip>
         </div>
         <div>
@@ -1480,7 +1504,7 @@ function CoachActionCard({ action }: { action: CoachAction }) {
 
 function ExpenseTable({ expenses, onEdit, onRemove }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onRemove: (id: string) => void }) {
   return (
-    <Table removeWrapper aria-label="Expense transactions" classNames={{ th: "bg-slate-50 text-slate-600", td: "py-4" }}>
+    <Table removeWrapper aria-label="Expense transactions" classNames={{ th: "glass-control text-slate-600", td: "py-4" }}>
       <TableHeader>
         <TableColumn>EXPENSE</TableColumn>
         <TableColumn>CATEGORY</TableColumn>
@@ -1494,7 +1518,7 @@ function ExpenseTable({ expenses, onEdit, onRemove }: { expenses: Expense[]; onE
           <TableRow key={expense.id}>
             <TableCell>
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-slate-100 p-2 text-slate-600"><ReceiptText size={18} /></div>
+                <div className="glass-control rounded-lg p-2 text-slate-600"><ReceiptText size={18} /></div>
                 <div>
                   <p className="font-medium text-slate-950">{expense.title}</p>
                   <p className="max-w-[260px] truncate text-xs text-slate-500">{expense.note || "No note"}</p>
@@ -1530,10 +1554,10 @@ function ExpenseTable({ expenses, onEdit, onRemove }: { expenses: Expense[]; onE
 
 function ExpenseCard({ expense, onEdit, onRemove }: { expense: Expense; onEdit: (expense: Expense) => void; onRemove: (id: string) => void }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="glass-panel rounded-lg p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-lg bg-slate-100 p-2 text-slate-600"><LayoutGrid size={18} /></div>
+          <div className="glass-control rounded-lg p-2 text-slate-600"><LayoutGrid size={18} /></div>
           <div className="min-w-0">
             <p className="truncate font-medium text-slate-950">{expense.title}</p>
             <p className="text-xs text-slate-500">{expense.date} · {expense.paymentMethod}{expense.recurring ? " · recurring" : ""}</p>
@@ -1559,7 +1583,7 @@ function ExpenseCard({ expense, onEdit, onRemove }: { expense: Expense; onEdit: 
 
 function RollupCard({ color, label, meta, total }: { color: string; label: string; meta: string; total: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="glass-panel rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="h-10 w-2 rounded-full" style={{ backgroundColor: color }} />
@@ -1576,7 +1600,7 @@ function RollupCard({ color, label, meta, total }: { color: string; label: strin
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+    <div className="glass-panel rounded-lg border-dashed p-8 text-center">
       <Layers3 className="mx-auto mb-3 text-slate-400" size={24} />
       <p className="font-medium text-slate-700">No expenses match these filters.</p>
     </div>
@@ -1594,7 +1618,7 @@ function TemplateOption({
 }) {
   return (
     <button
-      className={`min-h-[178px] rounded-lg border p-4 text-left transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white hover:border-primary-200"}`}
+      className={`glass-panel min-h-[178px] rounded-lg p-4 text-left transition ${isSelected ? "ring-1 ring-primary" : "hover:ring-1 hover:ring-primary/40"}`}
       type="button"
       onClick={onSelect}
     >
@@ -1620,12 +1644,12 @@ function IntegrationTile({
 }) {
   return (
     <button
-      className={`rounded-lg border p-4 text-left transition ${isSelected ? "border-primary bg-primary-50" : "border-slate-200 bg-white hover:border-primary-200"}`}
+      className={`glass-panel rounded-lg p-4 text-left transition ${isSelected ? "ring-1 ring-primary" : "hover:ring-1 hover:ring-primary/40"}`}
       type="button"
       onClick={onSelect}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{integration.icon}</span>
+        <span className="glass-control rounded-lg p-2 text-slate-700">{integration.icon}</span>
         <CloudStatusPill label={integration.status} tone={integration.status === "Connected" ? "success" : "default"} />
       </div>
       <h3 className="mt-3 text-sm font-semibold text-slate-950">{integration.name}</h3>
@@ -1637,10 +1661,10 @@ function IntegrationTile({
 function CloudStatusPill({ label, tone }: { label: string; tone: "success" | "warning" | "default" }) {
   const toneClass =
     tone === "success"
-      ? "border-primary-200 bg-primary-50 text-primary-700"
+      ? "border-primary-200 bg-primary-50/70 text-primary-700"
       : tone === "warning"
-        ? "border-warning-200 bg-warning-50 text-warning-700"
-        : "border-slate-200 bg-slate-50 text-slate-600";
+        ? "border-warning-200 bg-warning-50/70 text-warning-700"
+        : "border-white/40 bg-white/35 text-slate-600";
 
   return (
     <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${toneClass}`}>
@@ -1654,7 +1678,7 @@ function ExportHistoryRow({ entry }: { entry: ExportHistoryEntry }) {
   const tone = entry.status === "Completed" ? "success" : entry.status === "Scheduled" ? "warning" : "default";
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="glass-panel rounded-lg p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-slate-950">{entry.action}</p>
@@ -1674,8 +1698,8 @@ function MiniQrCode({ value }: { value: string }) {
   });
 
   return (
-    <div className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
-      <div className="grid h-20 w-20 grid-cols-7 gap-1 rounded-md bg-white p-1">
+    <div className="glass-panel mt-3 flex items-center gap-3 rounded-lg p-3">
+      <div className="grid h-20 w-20 grid-cols-7 gap-1 rounded-md bg-white/80 p-1">
         {cells.map((isFilled, index) => (
           <span key={index} className={`rounded-[1px] ${isFilled ? "bg-slate-950" : "bg-slate-100"}`} />
         ))}

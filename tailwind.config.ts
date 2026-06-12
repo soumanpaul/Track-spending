@@ -20,53 +20,57 @@ const config: Config = {
       themes: {
         light: {
           colors: {
-            background: "#f7f8fb",
-            foreground: "#172026",
+            background: "#edf4ff",
+            foreground: "#16202f",
+            content1: "rgba(255, 255, 255, 0.28)",
+            content2: "rgba(255, 255, 255, 0.2)",
+            content3: "rgba(255, 255, 255, 0.14)",
+            content4: "rgba(226, 232, 240, 0.18)",
             primary: {
-              50: "#eefbf6",
-              100: "#d4f5e8",
-              200: "#aeead4",
-              300: "#78d9b8",
-              400: "#42c397",
-              500: "#1aa878",
-              600: "#108861",
-              700: "#0e6d50",
-              800: "#0e5742",
-              900: "#0d4838",
-              DEFAULT: "#1aa878",
+              50: "#ecfeff",
+              100: "#cffafe",
+              200: "#a5f3fc",
+              300: "#67e8f9",
+              400: "#22d3ee",
+              500: "#06b6d4",
+              600: "#0891b2",
+              700: "#0e7490",
+              800: "#155e75",
+              900: "#164e63",
+              DEFAULT: "#0891b2",
               foreground: "#ffffff"
             },
             secondary: {
-              DEFAULT: "#3457d5",
+              DEFAULT: "#7c3aed",
               foreground: "#ffffff"
             }
           }
         },
         dark: {
           colors: {
-            background: "#0f172a",
-            foreground: "#e5eef8",
-            content1: "#111827",
-            content2: "#172033",
-            content3: "#243045",
-            content4: "#334155",
+            background: "#07111f",
+            foreground: "#eef6ff",
+            content1: "rgba(255, 255, 255, 0.095)",
+            content2: "rgba(255, 255, 255, 0.075)",
+            content3: "rgba(255, 255, 255, 0.055)",
+            content4: "rgba(255, 255, 255, 0.045)",
             primary: {
-              50: "#09251c",
-              100: "#0b3b2c",
-              200: "#0d513d",
-              300: "#0f6a4e",
-              400: "#148864",
-              500: "#23b887",
-              600: "#49cca0",
-              700: "#7dddbb",
-              800: "#b7eed8",
-              900: "#e8fbf4",
-              DEFAULT: "#23b887",
-              foreground: "#061912"
+              50: "#083344",
+              100: "#164e63",
+              200: "#155e75",
+              300: "#0e7490",
+              400: "#0891b2",
+              500: "#22d3ee",
+              600: "#67e8f9",
+              700: "#a5f3fc",
+              800: "#cffafe",
+              900: "#ecfeff",
+              DEFAULT: "#22d3ee",
+              foreground: "#04111d"
             },
             secondary: {
-              DEFAULT: "#8ea4ff",
-              foreground: "#0b1020"
+              DEFAULT: "#c4b5fd",
+              foreground: "#160f2e"
             }
           }
         }
