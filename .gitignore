@@ -1,4 +1,6 @@
 node_modules/
+lib/generated/
+*.db
 
 # Next.js
 .next/

@@ -69,11 +69,14 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  LogOut,
   Unlink,
+  UserRound,
   X,
   WalletCards,
   Zap,
 } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { useThemeMode } from "@/app/providers";
 import {
   Budget,
@@ -249,6 +252,7 @@ const bankAccountTypes: BankAccountType[] = ["Checking", "Savings", "Credit card
 
 export function ExpenseTracker() {
   const { theme, toggleTheme } = useThemeMode();
+  const { data: session } = useSession();
   const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
   const [budgets, setBudgets] = useState<Budget>(defaultBudgets);
   const [form, setForm] = useState(emptyForm);
@@ -647,7 +651,11 @@ export function ExpenseTracker() {
               Add purchases, monitor category limits, search transactions, and export a clean CSV from one focused dashboard.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+              <UserRound size={17} />
+              <span className="max-w-[180px] truncate">{session?.user?.name ?? session?.user?.email ?? "Signed in"}</span>
+            </div>
             <Button
               startContent={theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               variant="bordered"
@@ -663,6 +671,9 @@ export function ExpenseTracker() {
             </Button>
             <Button startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
               Reset
+            </Button>
+            <Button color="danger" startContent={<LogOut size={18} />} variant="flat" onPress={() => signOut({ callbackUrl: "/login" })}>
+              Sign out
             </Button>
           </div>
         </header>

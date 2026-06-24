@@ -1,6 +1,7 @@
 "use client";
 
 import { NextUIProvider } from "@nextui-org/react";
+import { SessionProvider } from "next-auth/react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type ThemeMode = "light" | "dark";
@@ -43,7 +44,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <NextUIProvider>{children}</NextUIProvider>
+      <SessionProvider>
+        <NextUIProvider>{children}</NextUIProvider>
+      </SessionProvider>
     </ThemeContext.Provider>
   );
 }
