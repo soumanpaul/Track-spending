@@ -1,6 +1,7 @@
 node_modules/
 lib/generated/
 *.db
+.playwright-mcp/
 
 # Next.js
 .next/

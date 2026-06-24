@@ -257,6 +257,7 @@ export function ExpenseTracker() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const isSignedIn = sessionStatus === "authenticated";
+  const isSessionLoading = sessionStatus === "loading";
   const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
   const [budgets, setBudgets] = useState<Budget>(defaultBudgets);
   const [form, setForm] = useState(emptyForm);
@@ -277,6 +278,7 @@ export function ExpenseTracker() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("table");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
+  const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
   const [isCloudExportOpen, setIsCloudExportOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<ExportTemplate>("Monthly Summary");
   const [cloudProvider, setCloudProvider] = useState<CloudProvider>("Google Sheets");
@@ -528,8 +530,10 @@ export function ExpenseTracker() {
   }
 
   function openCloudExport() {
+    if (isSessionLoading) return;
+
     if (!isSignedIn) {
-      router.push("/login?callbackUrl=/");
+      setIsAuthPromptOpen(true);
       return;
     }
 
@@ -672,7 +676,7 @@ export function ExpenseTracker() {
             >
               {theme === "dark" ? "Light mode" : "Dark mode"}
             </Button>
-            <Button color="primary" startContent={<CloudUpload size={18} />} variant="flat" onPress={openCloudExport}>
+            <Button color="primary" isLoading={isSessionLoading} startContent={isSessionLoading ? undefined : <CloudUpload size={18} />} variant="flat" onPress={openCloudExport}>
               Cloud Export
             </Button>
             <Button startContent={<Landmark size={18} />} variant="bordered" onPress={() => setIsBankLinkOpen(true)}>
@@ -710,6 +714,44 @@ export function ExpenseTracker() {
             {feedback}
           </div>
         ) : null}
+
+        <Modal isOpen={isAuthPromptOpen} size="md" onOpenChange={setIsAuthPromptOpen}>
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <LockKeyhole size={21} />
+                    Sign in required
+                  </div>
+                  <p className="text-sm font-normal text-slate-500">
+                    In order to use upload and cloud export workflows, you need to sign in first.
+                  </p>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                    You can continue browsing the dashboard as a guest. Signing in unlocks workflows that publish, upload, or share your expense data.
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="flat" onPress={onClose}>
+                    Stay as guest
+                  </Button>
+                  <Button
+                    color="primary"
+                    startContent={<LogIn size={18} />}
+                    onPress={() => {
+                      onClose();
+                      router.push("/login?callbackUrl=/");
+                    }}
+                  >
+                    Sign in
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
 
         <Modal isOpen={isCloudExportOpen} scrollBehavior="inside" size="5xl" onOpenChange={setIsCloudExportOpen}>
           <ModalContent>
