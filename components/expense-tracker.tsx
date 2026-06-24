@@ -52,6 +52,7 @@ import {
   LayoutGrid,
   Layers3,
   ListFilter,
+  LogIn,
   Mail,
   Moon,
   Plus,
@@ -77,6 +78,7 @@ import {
   Zap,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useThemeMode } from "@/app/providers";
 import {
   Budget,
@@ -252,7 +254,9 @@ const bankAccountTypes: BankAccountType[] = ["Checking", "Savings", "Credit card
 
 export function ExpenseTracker() {
   const { theme, toggleTheme } = useThemeMode();
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+  const isSignedIn = sessionStatus === "authenticated";
   const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
   const [budgets, setBudgets] = useState<Budget>(defaultBudgets);
   const [form, setForm] = useState(emptyForm);
@@ -524,6 +528,11 @@ export function ExpenseTracker() {
   }
 
   function openCloudExport() {
+    if (!isSignedIn) {
+      router.push("/login?callbackUrl=/");
+      return;
+    }
+
     setIsCloudExportOpen(true);
   }
 
@@ -654,7 +663,7 @@ export function ExpenseTracker() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
               <UserRound size={17} />
-              <span className="max-w-[180px] truncate">{session?.user?.name ?? session?.user?.email ?? "Signed in"}</span>
+              <span className="max-w-[180px] truncate">{isSignedIn ? session?.user?.name ?? session?.user?.email ?? "Signed in" : "Guest view"}</span>
             </div>
             <Button
               startContent={theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
@@ -672,9 +681,15 @@ export function ExpenseTracker() {
             <Button startContent={<RefreshCcw size={18} />} variant="bordered" onPress={resetDemoData}>
               Reset
             </Button>
-            <Button color="danger" startContent={<LogOut size={18} />} variant="flat" onPress={() => signOut({ callbackUrl: "/login" })}>
-              Sign out
-            </Button>
+            {isSignedIn ? (
+              <Button color="danger" startContent={<LogOut size={18} />} variant="flat" onPress={() => signOut({ callbackUrl: "/login" })}>
+                Sign out
+              </Button>
+            ) : (
+              <Button startContent={<LogIn size={18} />} variant="bordered" onPress={() => router.push("/login?callbackUrl=/")}>
+                Sign in
+              </Button>
+            )}
           </div>
         </header>
 
